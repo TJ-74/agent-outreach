@@ -27,7 +27,8 @@ export type LeadInput = Omit<
   | "lastRepliedAt"
   | "tags"
   | "actionNeeded"
->;
+  | "research"
+> & { research?: string };
 
 export interface Lead {
   id: string;
@@ -171,6 +172,7 @@ export const useLeadStore = create<LeadState>((set) => ({
         linked_in: lead.linkedIn,
         status: lead.status,
         notes: lead.notes,
+        research: lead.research ?? "",
       })
       .select()
       .single();
@@ -196,6 +198,7 @@ export const useLeadStore = create<LeadState>((set) => ({
       linked_in: lead.linkedIn,
       status: lead.status,
       notes: lead.notes,
+      research: lead.research ?? "",
     }));
 
     const { data, error } = await supabase

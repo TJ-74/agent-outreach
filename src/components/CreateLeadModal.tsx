@@ -18,6 +18,7 @@ const empty = {
   linkedIn: "",
   status: "new" as LeadStatus,
   notes: "",
+  research: "",
 };
 
 export default function CreateLeadModal({ open, onClose }: Props) {

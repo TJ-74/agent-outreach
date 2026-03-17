@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useOutlookStore } from "@/store/outlook";
 import { useGoogleStore } from "@/store/google";
 import { Mail, CheckCircle, AlertCircle, LogOut, Loader2, Chrome } from "lucide-react";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const {
     isConnected: isOutlookConnected,
     userEmail: outlookEmail,
@@ -233,5 +233,28 @@ export default function SettingsPage() {
         </ol>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-[720px] px-10 py-12">
+        <div className="mb-10">
+          <h1 className="font-[family-name:var(--font-display)] text-[28px] font-extrabold tracking-[-0.03em] text-ink">
+            Settings
+          </h1>
+          <p className="mt-2 text-[14px] text-ink-mid">
+            Connect your email account to send outreach.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-ink-light" />
+          <span className="text-[14px] text-ink-mid">Loading...</span>
+        </div>
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   );
 }
