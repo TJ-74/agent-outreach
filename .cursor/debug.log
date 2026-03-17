@@ -1,0 +1,22 @@
+{"timestamp": 1771637607348, "location": "graph.py:stream_agent", "message": "yielding plan", "data": {"num_steps": 5, "ms": 10145}, "hypothesisId": "H2"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"plan","msFromStart":0,"chunkNum":1,"stepIndex":null},"timestamp":1771637607355,"hypothesisId":"H1_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":1,"msFromStart":0,"byteLength":602},"timestamp":1771637607355,"hypothesisId":"H1"}
+{"timestamp": 1771637607695, "location": "graph.py:stream_agent", "message": "yielding step_complete", "data": {"idx": 0, "tool": "get_lead_profile", "ms": 10493}, "hypothesisId": "H2_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":2,"msFromStart":457,"byteLength":994},"timestamp":1771637607812,"hypothesisId":"H1"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"step_complete","msFromStart":458,"chunkNum":2,"stepIndex":0},"timestamp":1771637607813,"hypothesisId":"H1_H3"}
+{"timestamp": 1771637608066, "location": "graph.py:stream_agent", "message": "yielding step_complete", "data": {"idx": 1, "tool": "get_conversation", "ms": 10863}, "hypothesisId": "H2_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":3,"msFromStart":745,"byteLength":981},"timestamp":1771637608100,"hypothesisId":"H1"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"step_complete","msFromStart":746,"chunkNum":3,"stepIndex":1},"timestamp":1771637608101,"hypothesisId":"H1_H3"}
+{"timestamp": 1771637610898, "location": "graph.py:stream_agent", "message": "yielding step_complete", "data": {"idx": 2, "tool": "search_web", "ms": 13696}, "hypothesisId": "H2_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":4,"msFromStart":3547,"byteLength":993},"timestamp":1771637610902,"hypothesisId":"H1"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"step_complete","msFromStart":3548,"chunkNum":4,"stepIndex":2},"timestamp":1771637610903,"hypothesisId":"H1_H3"}
+{"timestamp": 1771637611183, "location": "graph.py:stream_agent", "message": "yielding step_complete", "data": {"idx": 3, "tool": "summarize_messages", "ms": 13980}, "hypothesisId": "H2_H3"}
+{"timestamp": 1771637611184, "location": "graph.py:stream_agent", "message": "yielding step_complete", "data": {"idx": 4, "tool": "analyze_engagement", "ms": 13982}, "hypothesisId": "H2_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":5,"msFromStart":3832,"byteLength":195},"timestamp":1771637611187,"hypothesisId":"H1"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"step_complete","msFromStart":3832,"chunkNum":5,"stepIndex":3},"timestamp":1771637611187,"hypothesisId":"H1_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":6,"msFromStart":3841,"byteLength":191},"timestamp":1771637611196,"hypothesisId":"H1"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"step_complete","msFromStart":3842,"chunkNum":6,"stepIndex":4},"timestamp":1771637611197,"hypothesisId":"H1_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":7,"msFromStart":5088,"byteLength":547},"timestamp":1771637612443,"hypothesisId":"H1"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"response","msFromStart":5088,"chunkNum":7,"stepIndex":null},"timestamp":1771637612443,"hypothesisId":"H1_H3"}
+{"location":"LeadThreadPanel.tsx:reader.read","message":"NDJSON chunk received","data":{"chunkNum":8,"msFromStart":5328,"byteLength":57},"timestamp":1771637612683,"hypothesisId":"H1"}
+{"location":"LeadThreadPanel.tsx:ndjson_msg","message":"NDJSON message parsed","data":{"type":"done","msFromStart":5328,"chunkNum":8,"stepIndex":null},"timestamp":1771637612683,"hypothesisId":"H1_H3"}

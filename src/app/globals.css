@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  /* Warm Canvas */
+  --color-cream: #F7F5F2;
+  --color-cream-deep: #EFECE7;
+  --color-surface: #FFFFFF;
+
+  /* Charcoal — anchoring darks */
+  --color-charcoal: #2D3B45;
+  --color-charcoal-light: #3D4F5C;
+  --color-charcoal-deep: #1C272F;
+
+  /* Copper — primary accent */
+  --color-copper: #C2690E;
+  --color-copper-hover: #A85A0A;
+  --color-copper-light: #FDF2E5;
+  --color-copper-muted: #F5DFC4;
+
+  /* Sage — secondary */
+  --color-sage: #3B7A6B;
+  --color-sage-light: #EDF5F3;
+  --color-sage-muted: #C6DDD7;
+
+  /* Semantic */
+  --color-rose: #BE3D3D;
+  --color-rose-light: #FCEAEA;
+  --color-amber: #A16207;
+  --color-amber-light: #FEF6E0;
+
+  /* Text — warm grays */
+  --color-ink: #2C2925;
+  --color-ink-mid: #7A746D;
+  --color-ink-light: #B3ADA5;
+  --color-ink-faint: #D4CFC8;
+
+  /* Edges */
+  --color-edge: #E8E4DF;
+  --color-edge-strong: #D4CFC8;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(44,41,37,0.04);
+  --shadow-sm: 0 2px 8px rgba(44,41,37,0.05), 0 1px 2px rgba(44,41,37,0.03);
+  --shadow-md: 0 4px 16px rgba(44,41,37,0.07), 0 1px 4px rgba(44,41,37,0.03);
+  --shadow-lg: 0 12px 40px rgba(44,41,37,0.1), 0 2px 8px rgba(44,41,37,0.04);
+  --shadow-copper: 0 4px 14px rgba(194,105,14,0.18);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-faint) transparent;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), system-ui, sans-serif;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-up {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@utility animate-fade-up {
+  animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility animate-scale-up {
+  animation: scale-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@utility animate-slide-in {
+  animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@utility animate-slide-in-left {
+  animation: slide-in-left 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@utility animate-slide-in-right {
+  animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
