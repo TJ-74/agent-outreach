@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Settings, Zap, GitBranch, FolderOpen, Bell, CheckCircle } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Zap, GitBranch, FolderOpen, Bell, CheckCircle, Brain } from "lucide-react";
 import clsx from "clsx";
 import { useUnreadStore } from "@/store/unread";
 
@@ -12,6 +12,7 @@ const nav = [
   { href: "/sequences", label: "Sequences", icon: GitBranch },
   { href: "/approval", label: "Approval", icon: CheckCircle },
   { href: "/groups", label: "Groups", icon: FolderOpen },
+  { href: "/training", label: "AI Training", icon: Brain },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

@@ -14,6 +14,7 @@ export interface Sequence {
   stepCount?: number;
   enrolledCount?: number;
   groupId?: string | null;
+  trainingConfigId?: string | null;
 }
 
 export interface SequenceStep {
@@ -48,6 +49,7 @@ interface SeqRow {
   created_at: string;
   updated_at: string;
   group_id: string | null;
+  training_config_id: string | null;
 }
 
 interface StepRow {
@@ -83,6 +85,7 @@ function rowToSequence(row: SeqRow): Sequence {
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? row.created_at,
     groupId: row.group_id ?? null,
+    trainingConfigId: row.training_config_id ?? null,
   };
 }
 
@@ -129,7 +132,7 @@ interface SequenceState {
 
   fetchSequences: () => Promise<void>;
   createSequence: (name: string, description?: string) => Promise<Sequence | null>;
-  updateSequence: (id: string, updates: Partial<Pick<Sequence, "name" | "description" | "status" | "groupId">>) => Promise<void>;
+  updateSequence: (id: string, updates: Partial<Pick<Sequence, "name" | "description" | "status" | "groupId" | "trainingConfigId">>) => Promise<void>;
   bulkEnroll: (sequenceId: string, leadIds: string[]) => Promise<void>;
   deleteSequence: (id: string) => Promise<void>;
 
@@ -211,6 +214,7 @@ export const useSequenceStore = create<SequenceState>((set, get) => ({
     if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.groupId !== undefined) dbUpdates.group_id = updates.groupId;
+    if (updates.trainingConfigId !== undefined) dbUpdates.training_config_id = updates.trainingConfigId;
 
     const { error } = await supabase.from("sequences").update(dbUpdates).eq("id", id);
     if (!error) {

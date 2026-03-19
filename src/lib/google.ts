@@ -269,15 +269,26 @@ export async function sendGmailEmail(args: {
   subject: string;
   body: string;
   isHtml: boolean;
+  fromName?: string;
+  fromEmail?: string;
 }) {
-  const mime = [
+  const headers: string[] = [
     "MIME-Version: 1.0",
+  ];
+
+  if (args.fromName && args.fromEmail) {
+    headers.push(`From: ${args.fromName} <${args.fromEmail}>`);
+  } else if (args.fromEmail) {
+    headers.push(`From: ${args.fromEmail}`);
+  }
+
+  headers.push(
     `To: ${args.to}`,
     `Subject: ${args.subject}`,
     `Content-Type: ${args.isHtml ? "text/html" : "text/plain"}; charset=UTF-8`,
-    "",
-    args.body,
-  ].join("\r\n");
+  );
+
+  const mime = [...headers, "", args.body].join("\r\n");
 
   const raw = toBase64Url(mime);
 

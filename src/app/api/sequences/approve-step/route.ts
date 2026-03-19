@@ -33,6 +33,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Lead not found or missing email" }, { status: 404 });
   }
 
+  // Look up sender name/email for proper "From" display
+  let senderName = "";
+  let senderEmail = "";
+  if (enrollment?.user_id) {
+    const { data: sender } = await supabase
+      .from("users")
+      .select("name, email")
+      .eq("id", enrollment.user_id)
+      .single();
+    senderName = sender?.name ?? "";
+    senderEmail = sender?.email ?? "";
+  }
+
   const leadName = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || lead.email;
   const sequenceName =
     (await supabase.from("sequences").select("name").eq("id", sequenceId).single()).data?.name ?? "";
@@ -47,6 +60,9 @@ export async function POST(req: NextRequest) {
           subject,
           body: { contentType: isHtml ? "HTML" : "Text", content: finalBody },
           toRecipients: [{ emailAddress: { address: lead.email } }],
+          from: senderName
+            ? { emailAddress: { name: senderName, address: senderEmail } }
+            : undefined,
         },
         saveToSentItems: true,
       });
@@ -57,6 +73,8 @@ export async function POST(req: NextRequest) {
         subject,
         body: finalBody,
         isHtml,
+        fromName: senderName,
+        fromEmail: senderEmail,
       });
     }
   } catch (err) {
@@ -74,7 +92,13 @@ export async function POST(req: NextRequest) {
   const allSteps = steps ?? [];
   const nextStep = allSteps.find((s: { step_order: number }) => s.step_order === 2);
   const now = new Date();
-  const updates: Record<string, unknown> = { current_step: 2 };
+  const updates: Record<string, unknown> = {
+    current_step: 2,
+    generated_subject: subject,
+    generated_body: finalBody,
+    is_html: !!isHtml,
+    generated_at: now.toISOString(),
+  };
 
   if (nextStep) {
     updates.next_step_at = new Date(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -22,6 +22,8 @@ import {
   Pause,
   Code2,
   AlignLeft,
+  AlertTriangle,
+  Brain,
 } from "lucide-react";
 import {
   useSequenceStore,
@@ -31,6 +33,8 @@ import {
 } from "@/store/sequences";
 import { useGroupStore } from "@/store/groups";
 import { useLeadStore } from "@/store/leads";
+import { useTrainingStore, getToneOption } from "@/store/training";
+import { clusterByDomain } from "@/lib/domain";
 
 interface Props {
   sequence: Sequence | null;
@@ -46,12 +50,6 @@ const VARIABLES = [
   { key: "jobTitle", label: "Job Title", sample: "VP of Sales" },
 ];
 
-const STATUS_OPTIONS: { value: SequenceStatus; label: string }[] = [
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "completed", label: "Completed" },
-];
 
 function renderPreview(template: string): string {
   let result = template;
@@ -103,6 +101,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
   const { members, fetchMembers } = useGroupStore();
   const leads = useLeadStore((s) => s.leads);
   const fetchLeads = useLeadStore((s) => s.fetchLeads);
+  const { configs: trainingConfigs, fetchConfigs: fetchTrainingConfigs } = useTrainingStore();
 
   const [name, setName] = useState(sequence?.name ?? "");
   const [description, setDescription] = useState(sequence?.description ?? "");
@@ -110,8 +109,10 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [seqId, setSeqId] = useState<string | null>(sequence?.id ?? null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(sequence?.groupId ?? null);
+  const [selectedTrainingId, setSelectedTrainingId] = useState<string | null>(sequence?.trainingConfigId ?? null);
   const [assigning, setAssigning] = useState(false);
   const [enrollTab, setEnrollTab] = useState<"sent" | "pending">("pending");
+  const [mainTab, setMainTab] = useState<"audience" | "steps">("audience");
 
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [previewStepId, setPreviewStepId] = useState<string | null>(null);
@@ -128,7 +129,8 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
   useEffect(() => {
     fetchGroups();
     fetchLeads();
-  }, [fetchGroups, fetchLeads]);
+    fetchTrainingConfigs();
+  }, [fetchGroups, fetchLeads, fetchTrainingConfigs]);
 
   useEffect(() => {
     if (sequence?.id) {
@@ -217,6 +219,11 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
     setSelectedGroupId(null);
   };
 
+  const domainClusters = useMemo(
+    () => clusterByDomain(members, (m) => m.leadEmail).filter((c) => !c.isFree),
+    [members],
+  );
+
   const enrolledLeadMap = new Map(
     leads.map((l) => [l.id, l])
   );
@@ -303,7 +310,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" onClick={onClose} />
 
-      <div className="relative z-10 flex h-full w-full max-w-[720px] flex-col bg-surface shadow-lg animate-slide-in">
+      <div className="relative z-10 flex h-full w-[75vw] min-w-[540px] flex-col bg-surface shadow-lg animate-slide-in">
         {/* Header */}
         <div className="border-b border-edge px-8 py-6">
           <div className="flex items-start justify-between">
@@ -364,196 +371,291 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
             </div>
           </div>
 
-          {/* Status toggle */}
-          <div className="mt-4 flex gap-1 rounded-[8px] border border-edge bg-cream p-[3px]">
-            {STATUS_OPTIONS.map((opt) => (
+          {/* Tab bar */}
+          {seqId && (
+            <div className="mt-5 flex gap-1 rounded-[10px] border border-edge bg-cream p-[3px]">
               <button
-                key={opt.value}
-                onClick={() => setStatus(opt.value)}
-                className={`cursor-pointer flex-1 rounded-[6px] py-[6px] text-[12px] font-semibold transition-all ${
-                  status === opt.value ? "bg-surface text-ink shadow-xs" : "text-ink-mid hover:text-ink"
+                onClick={() => setMainTab("audience")}
+                className={`cursor-pointer flex flex-1 items-center justify-center gap-1.5 rounded-[8px] py-[7px] text-[12px] font-semibold transition-all ${
+                  mainTab === "audience"
+                    ? "bg-surface text-copper shadow-xs"
+                    : "text-ink-mid hover:text-ink"
                 }`}
               >
-                {opt.label}
+                <Users className="h-3.5 w-3.5" />
+                Audience & Training
               </button>
-            ))}
-          </div>
+              <button
+                onClick={() => setMainTab("steps")}
+                className={`cursor-pointer flex flex-1 items-center justify-center gap-1.5 rounded-[8px] py-[7px] text-[12px] font-semibold transition-all ${
+                  mainTab === "steps"
+                    ? "bg-surface text-copper shadow-xs"
+                    : "text-ink-mid hover:text-ink"
+                }`}
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Email Steps
+                {steps.length > 0 && (
+                  <span className={`rounded-full px-1.5 py-[1px] text-[9px] font-bold ${
+                    mainTab === "steps" ? "bg-copper-light text-copper" : "bg-cream-deep text-ink-light"
+                  }`}>
+                    {steps.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Group Selector */}
-        {seqId && (
-          <div className="border-b border-edge px-8 py-5">
-            <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
-              Assign Group
-            </p>
+        {/* ══ Audience & Training tab ══ */}
+        {seqId && mainTab === "audience" && (
+          <div className="flex-1 overflow-y-auto">
+            {/* Group Selector */}
+            <div className="border-b border-edge px-8 py-5">
+              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                Assign Group
+              </p>
 
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedGroupId ?? ""}
-                onChange={(e) => setSelectedGroupId(e.target.value || null)}
-                className="flex-1 cursor-pointer rounded-[8px] border border-edge bg-surface px-3 py-[8px] text-[13px] text-ink outline-none transition-all hover:border-edge-strong focus:border-copper focus:ring-[3px] focus:ring-copper-light"
-              >
-                <option value="">Select a group...</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name} ({g.memberCount ?? 0} members)
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedGroupId ?? ""}
+                  onChange={(e) => setSelectedGroupId(e.target.value || null)}
+                  className="flex-1 cursor-pointer rounded-[8px] border border-edge bg-surface px-3 py-[8px] text-[13px] text-ink outline-none transition-all hover:border-edge-strong focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                >
+                  <option value="">Select a group...</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name} ({g.memberCount ?? 0} members)
+                    </option>
+                  ))}
+                </select>
 
-              <button
-                onClick={handleAssignGroup}
-                disabled={!selectedGroupId || assigning}
-                className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-sage px-3.5 py-[8px] text-[12px] font-semibold text-white transition-all hover:bg-sage/90 disabled:opacity-40"
-              >
-                {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
-                Assign
-              </button>
+                <button
+                  onClick={handleAssignGroup}
+                  disabled={!selectedGroupId || assigning}
+                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-sage px-3.5 py-[8px] text-[12px] font-semibold text-white transition-all hover:bg-sage/90 disabled:opacity-40"
+                >
+                  {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
+                  Assign
+                </button>
+
+                {sequence?.groupId && (
+                  <button
+                    onClick={handleRemoveGroup}
+                    className="cursor-pointer rounded-[8px] p-[8px] text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
+                    title="Remove group"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
 
               {sequence?.groupId && (
-                <button
-                  onClick={handleRemoveGroup}
-                  className="cursor-pointer rounded-[8px] p-[8px] text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
-                  title="Remove group"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <FolderOpen className="h-3 w-3 text-copper" />
+                  <span className="text-[11px] font-medium text-copper">
+                    {groups.find((g) => g.id === sequence.groupId)?.name ?? "Group"}
+                  </span>
+                </div>
               )}
-            </div>
 
-            {sequence?.groupId && (
-              <div className="mt-2 flex items-center gap-1.5">
-                <FolderOpen className="h-3 w-3 text-copper" />
-                <span className="text-[11px] font-medium text-copper">
-                  {groups.find((g) => g.id === sequence.groupId)?.name ?? "Group"}
-                </span>
-              </div>
-            )}
+              {domainClusters.length > 0 && (selectedGroupId || sequence?.groupId) && (
+                <div className="mt-2.5 flex items-start gap-2 rounded-[8px] border border-amber/30 bg-amber-light/30 px-3 py-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-amber">
+                      Multiple contacts at the same organization
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {domainClusters.map((c) => (
+                        <span
+                          key={c.domain}
+                          className="inline-flex items-center gap-1 rounded-full border border-amber/25 bg-surface px-1.5 py-[1px] text-[10px] font-medium text-ink-mid"
+                        >
+                          <span className="font-semibold text-amber">{c.count}</span>
+                          @{c.domain}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[10px] text-ink-light">
+                      Review emails individually in the approval step to avoid looking templated.
+                    </p>
+                  </div>
+                </div>
+              )}
 
-            {sendResult && (
-              <div className="mt-2 rounded-[8px] bg-sage-light px-3 py-2 text-[12px] font-medium text-sage">
-                {sendResult}
-              </div>
-            )}
+              {sendResult && (
+                <div className="mt-2 rounded-[8px] bg-sage-light px-3 py-2 text-[12px] font-medium text-sage">
+                  {sendResult}
+                </div>
+              )}
 
-            {/* Enrolled leads -- tabbed sent / pending */}
-            {enrollments.length > 0 && (() => {
-              const groupLeadIds = new Set(members.map((m) => m.leadId));
-              const groupEnrollments = selectedGroupId || sequence?.groupId
-                ? enrollments.filter((e) => groupLeadIds.has(e.leadId))
-                : enrollments;
+              {/* Enrolled leads -- tabbed sent / pending */}
+              {enrollments.length > 0 && (() => {
+                const groupLeadIds = new Set(members.map((m) => m.leadId));
+                const groupEnrollments = selectedGroupId || sequence?.groupId
+                  ? enrollments.filter((e) => groupLeadIds.has(e.leadId))
+                  : enrollments;
 
-              const sentEnrollments = groupEnrollments.filter((e) => e.currentStep > 1 || e.status === "completed");
-              const pendingEnrollments = groupEnrollments.filter((e) => e.currentStep <= 1 && e.status !== "completed");
-              const stepByOrder = new Map(steps.map((s) => [s.stepOrder, s]));
+                const sentEnrollments = groupEnrollments.filter((e) => e.currentStep > 1 || e.status === "completed");
+                const pendingEnrollments = groupEnrollments.filter((e) => e.currentStep <= 1 && e.status !== "completed");
+                const stepByOrder = new Map(steps.map((s) => [s.stepOrder, s]));
 
-              const activeList = enrollTab === "sent" ? sentEnrollments : pendingEnrollments;
+                const activeList = enrollTab === "sent" ? sentEnrollments : pendingEnrollments;
 
-              const renderRow = (enrollment: typeof enrollments[number]) => {
-                const lead = enrolledLeadMap.get(enrollment.leadId);
-                const isSent = enrollment.currentStep > 1 || enrollment.status === "completed";
+                const renderRow = (enrollment: typeof enrollments[number]) => {
+                  const lead = enrolledLeadMap.get(enrollment.leadId);
+                  const isSent = enrollment.currentStep > 1 || enrollment.status === "completed";
 
-                let stepLabel = "";
-                if (isSent) {
-                  const lastSentStep = stepByOrder.get(enrollment.currentStep - 1);
-                  stepLabel = enrollment.status === "completed"
-                    ? `Step ${enrollment.currentStep - 1}: ${lastSentStep?.subjectTemplate || "Completed"}`
-                    : `Step ${enrollment.currentStep - 1}: ${lastSentStep?.subjectTemplate || "(No subject)"}`;
-                } else {
-                  const nextStep = stepByOrder.get(enrollment.currentStep);
-                  stepLabel = `Step ${enrollment.currentStep}: ${nextStep?.subjectTemplate || "(No subject)"}`;
-                }
+                  let stepLabel = "";
+                  if (isSent) {
+                    const lastSentStep = stepByOrder.get(enrollment.currentStep - 1);
+                    stepLabel = enrollment.status === "completed"
+                      ? `Step ${enrollment.currentStep - 1}: ${lastSentStep?.subjectTemplate || "Completed"}`
+                      : `Step ${enrollment.currentStep - 1}: ${lastSentStep?.subjectTemplate || "(No subject)"}`;
+                  } else {
+                    const nextStep = stepByOrder.get(enrollment.currentStep);
+                    stepLabel = `Step ${enrollment.currentStep}: ${nextStep?.subjectTemplate || "(No subject)"}`;
+                  }
+
+                  return (
+                    <div
+                      key={enrollment.id}
+                      className="flex items-center justify-between border-b border-edge px-3 py-2.5 last:border-b-0 transition-colors hover:bg-cream/60"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-semibold text-ink">
+                          {lead ? `${lead.firstName} ${lead.lastName}` : "Unknown Lead"}
+                        </p>
+                        <p className="truncate text-[11px] text-ink-mid">
+                          {lead?.email ?? enrollment.leadId}
+                        </p>
+                        <p className={`mt-0.5 truncate text-[10px] font-medium ${isSent ? "text-sage" : "text-amber"}`}>
+                          {stepLabel}{enrollment.status === "completed" ? " (done)" : ""}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => unenrollLead(enrollment.id)}
+                        className="ml-2 cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
+                        title="Unenroll"
+                      >
+                        <UserMinus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                };
 
                 return (
-                  <div
-                    key={enrollment.id}
-                    className="flex items-center justify-between border-b border-edge px-3 py-2.5 last:border-b-0 transition-colors hover:bg-cream/60"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12px] font-semibold text-ink">
-                        {lead ? `${lead.firstName} ${lead.lastName}` : "Unknown Lead"}
-                      </p>
-                      <p className="truncate text-[11px] text-ink-mid">
-                        {lead?.email ?? enrollment.leadId}
-                      </p>
-                      <p className={`mt-0.5 truncate text-[10px] font-medium ${isSent ? "text-sage" : "text-amber"}`}>
-                        {stepLabel}{enrollment.status === "completed" ? " (done)" : ""}
-                      </p>
+                  <div className="mt-4">
+                    <div className="flex rounded-[8px] border border-edge bg-cream p-[3px]">
+                      <button
+                        onClick={() => setEnrollTab("sent")}
+                        className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] py-[6px] text-[12px] font-semibold transition-all ${
+                          enrollTab === "sent"
+                            ? "bg-surface text-sage shadow-xs"
+                            : "text-ink-mid hover:text-ink"
+                        }`}
+                      >
+                        <Send className="h-3 w-3" />
+                        Sent ({sentEnrollments.length})
+                      </button>
+                      <button
+                        onClick={() => setEnrollTab("pending")}
+                        className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] py-[6px] text-[12px] font-semibold transition-all ${
+                          enrollTab === "pending"
+                            ? "bg-surface text-amber shadow-xs"
+                            : "text-ink-mid hover:text-ink"
+                        }`}
+                      >
+                        <Clock className="h-3 w-3" />
+                        Pending ({pendingEnrollments.length})
+                      </button>
                     </div>
-                    <button
-                      onClick={() => unenrollLead(enrollment.id)}
-                      className="ml-2 cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
-                      title="Unenroll"
-                    >
-                      <UserMinus className="h-3.5 w-3.5" />
-                    </button>
+
+                    {activeList.length > 0 ? (
+                      <div className={`mt-2 max-h-[200px] overflow-y-auto rounded-[10px] border ${
+                        enrollTab === "sent" ? "border-sage/20 bg-sage-light/20" : "border-amber/20 bg-amber-light/20"
+                      }`}>
+                        {activeList.map(renderRow)}
+                      </div>
+                    ) : (
+                      <div className="mt-2 rounded-[10px] border border-dashed border-edge-strong py-6 text-center">
+                        <p className="text-[12px] text-ink-mid">
+                          {enrollTab === "sent" ? "No emails sent yet" : "All caught up -- nothing pending"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
-              };
+              })()}
+            </div>
 
-              return (
-                <div className="mt-4">
-                  {/* Tab bar */}
-                  <div className="flex rounded-[8px] border border-edge bg-cream p-[3px]">
-                    <button
-                      onClick={() => setEnrollTab("sent")}
-                      className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] py-[6px] text-[12px] font-semibold transition-all ${
-                        enrollTab === "sent"
-                          ? "bg-surface text-sage shadow-xs"
-                          : "text-ink-mid hover:text-ink"
-                      }`}
-                    >
-                      <Send className="h-3 w-3" />
-                      Sent ({sentEnrollments.length})
-                    </button>
-                    <button
-                      onClick={() => setEnrollTab("pending")}
-                      className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] py-[6px] text-[12px] font-semibold transition-all ${
-                        enrollTab === "pending"
-                          ? "bg-surface text-amber shadow-xs"
-                          : "text-ink-mid hover:text-ink"
-                      }`}
-                    >
-                      <Clock className="h-3 w-3" />
-                      Pending ({pendingEnrollments.length})
-                    </button>
+            {/* AI Training Config Selector */}
+            <div className="border-b border-edge px-8 py-5">
+              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                AI Training Profile
+              </p>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedTrainingId ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value || null;
+                    setSelectedTrainingId(val);
+                    if (seqId) updateSequence(seqId, { trainingConfigId: val });
+                  }}
+                  className="flex-1 cursor-pointer rounded-[8px] border border-edge bg-surface px-3 py-[8px] text-[13px] text-ink outline-none transition-all hover:border-edge-strong focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                >
+                  <option value="">No training profile</option>
+                  {trainingConfigs.map((tc) => {
+                    const tone = getToneOption(tc.tone);
+                    return (
+                      <option key={tc.id} value={tc.id}>
+                        {tc.name} ({tone.label})
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {selectedTrainingId && (
+                  <button
+                    onClick={() => {
+                      setSelectedTrainingId(null);
+                      if (seqId) updateSequence(seqId, { trainingConfigId: null });
+                    }}
+                    className="cursor-pointer rounded-[8px] p-[8px] text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
+                    title="Remove training"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {selectedTrainingId && (() => {
+                const tc = trainingConfigs.find((c) => c.id === selectedTrainingId);
+                if (!tc) return null;
+                const tone = getToneOption(tc.tone);
+                return (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <Brain className="h-3 w-3 text-copper" />
+                    <span className="text-[11px] font-medium text-copper">
+                      {tc.name}
+                    </span>
+                    <span className="text-[11px] text-ink-light">
+                      · {tone.label}
+                      {tc.dos.length + tc.donts.length > 0 && ` · ${tc.dos.length + tc.donts.length} rules`}
+                    </span>
                   </div>
-
-                  {/* List */}
-                  {activeList.length > 0 ? (
-                    <div className={`mt-2 max-h-[200px] overflow-y-auto rounded-[10px] border ${
-                      enrollTab === "sent" ? "border-sage/20 bg-sage-light/20" : "border-amber/20 bg-amber-light/20"
-                    }`}>
-                      {activeList.map(renderRow)}
-                    </div>
-                  ) : (
-                    <div className="mt-2 rounded-[10px] border border-dashed border-edge-strong py-6 text-center">
-                      <p className="text-[12px] text-ink-mid">
-                        {enrollTab === "sent" ? "No emails sent yet" : "All caught up -- nothing pending"}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+                );
+              })()}
+            </div>
           </div>
         )}
 
-        {/* Steps */}
+        {/* ══ Email Steps tab ══ */}
+        {seqId && mainTab === "steps" && (
         <div className="flex-1 overflow-y-auto px-8 py-6">
-          {!seqId ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <div className="rounded-[14px] bg-cream-deep p-5">
-                <Mail className="h-7 w-7 text-ink-light" />
-              </div>
-              <p className="mt-5 font-[family-name:var(--font-display)] text-[15px] font-bold text-ink">
-                Save to add steps
-              </p>
-              <p className="mt-1 text-center text-[13px] text-ink-mid">
-                Enter a name and save the sequence first, then add email steps.
-              </p>
-            </div>
-          ) : steps.length === 0 ? (
+          {steps.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="rounded-[14px] bg-cream-deep p-5">
                 <Mail className="h-7 w-7 text-ink-light" />
@@ -871,6 +973,24 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
             </div>
           )}
         </div>
+        )}
+
+        {/* Pre-save empty state (no tabs yet) */}
+        {!seqId && (
+          <div className="flex-1 overflow-y-auto px-8 py-6">
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="rounded-[14px] bg-cream-deep p-5">
+                <Mail className="h-7 w-7 text-ink-light" />
+              </div>
+              <p className="mt-5 font-[family-name:var(--font-display)] text-[15px] font-bold text-ink">
+                Save to get started
+              </p>
+              <p className="mt-1 text-center text-[13px] text-ink-mid">
+                Enter a name and save the sequence first, then configure audience and email steps.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

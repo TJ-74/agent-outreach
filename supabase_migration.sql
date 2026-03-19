@@ -321,3 +321,39 @@ create index if not exists idx_sent_emails_sent_at on sent_emails(sent_at desc);
 
 alter table sent_emails enable row level security;
 create policy "Allow all access on sent_emails" on sent_emails for all using (true) with check (true);
+
+-- AI Training Configs (multiple per user — assigned to sequences)
+-- ============================================================
+create table if not exists ai_training_config (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null default '',
+  description text default '',
+  brand_voice text default '',
+  tone text default 'professional',
+  custom_instructions text default '',
+  dos text[] default '{}',
+  donts text[] default '{}',
+  example_emails jsonb default '[]',
+  sender_name text default '',
+  sender_title text default '',
+  company_name text default '',
+  company_description text default '',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists idx_ai_training_config_user_id on ai_training_config(user_id);
+
+alter table ai_training_config enable row level security;
+create policy "Allow all access on ai_training_config" on ai_training_config for all using (true) with check (true);
+
+-- Link sequences to a training config
+alter table sequences add column if not exists training_config_id uuid references ai_training_config(id) on delete set null;
+
+-- Persist generated emails on enrollments so edits / AI rewrites survive page reloads
+alter table sequence_enrollments
+  add column if not exists generated_subject text default '',
+  add column if not exists generated_body text default '',
+  add column if not exists is_html boolean default false,
+  add column if not exists generated_at timestamptz;

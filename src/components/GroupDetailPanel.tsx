@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2, Loader2, Save, Search, UserPlus, Upload } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { X, Plus, Trash2, Loader2, Save, Search, UserPlus, Upload, AlertTriangle } from "lucide-react";
 import { useGroupStore, type Group } from "@/store/groups";
 import { useLeadStore } from "@/store/leads";
 import ImportLeadsCsvModal from "@/components/ImportLeadsCsvModal";
+import { clusterByDomain } from "@/lib/domain";
 
 interface Props {
   group: Group | null;
@@ -72,6 +73,12 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
   };
 
   const memberLeadIds = new Set(members.map((m) => m.leadId));
+
+  const domainClusters = useMemo(
+    () => clusterByDomain(members, (m) => m.leadEmail),
+    [members],
+  );
+  const orgClusters = domainClusters.filter((c) => !c.isFree);
 
   const filteredLeads = leads.filter((lead) => {
     if (memberLeadIds.has(lead.id)) return false;
@@ -252,6 +259,34 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                   Members ({members.length})
                 </p>
 
+                {orgClusters.length > 0 && (
+                  <div className="mb-3 rounded-[10px] border border-amber/30 bg-amber-light/30 px-3.5 py-2.5">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" />
+                      <div>
+                        <p className="text-[12px] font-semibold text-amber">
+                          Same-organization contacts detected
+                        </p>
+                        <p className="mt-0.5 text-[11px] leading-[1.5] text-ink-mid">
+                          Sending similar outreach to multiple people at the same company can look spammy.
+                          Consider personalising messages or staggering sends.
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {orgClusters.map((c) => (
+                            <span
+                              key={c.domain}
+                              className="inline-flex items-center gap-1 rounded-full border border-amber/30 bg-surface px-2 py-[2px] text-[11px] font-medium text-ink-mid"
+                            >
+                              <span className="font-semibold text-amber">{c.count}</span>
+                              @{c.domain}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {members.length === 0 ? (
                   <div className="rounded-[12px] border border-dashed border-edge-strong py-10 text-center">
                     <p className="text-[13px] text-ink-mid">No members yet. Search and add leads above.</p>
@@ -268,27 +303,36 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-edge">
-                        {members.map((member) => (
-                          <tr key={member.id} className="transition-colors hover:bg-cream/60">
-                            <td className="px-4 py-2.5 text-[12px] font-semibold text-ink">
-                              {member.leadName || "—"}
-                            </td>
-                            <td className="px-4 py-2.5 text-[12px] text-ink-mid">
-                              {member.leadEmail || "—"}
-                            </td>
-                            <td className="hidden px-4 py-2.5 text-[12px] text-ink-mid sm:table-cell">
-                              {member.leadCompany || "—"}
-                            </td>
-                            <td className="px-4 py-2.5 text-right">
-                              <button
-                                onClick={() => removeMember(member.id)}
-                                className="cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {members.map((member) => {
+                          const domain = member.leadEmail?.split("@")[1]?.toLowerCase();
+                          const cluster = domain ? orgClusters.find((c) => c.domain === domain) : undefined;
+                          return (
+                            <tr key={member.id} className={`transition-colors hover:bg-cream/60 ${cluster ? "bg-amber-light/10" : ""}`}>
+                              <td className="px-4 py-2.5 text-[12px] font-semibold text-ink">
+                                {member.leadName || "—"}
+                              </td>
+                              <td className="px-4 py-2.5 text-[12px] text-ink-mid">
+                                <span>{member.leadEmail || "—"}</span>
+                                {cluster && (
+                                  <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-light px-1.5 py-[1px] text-[9px] font-bold text-amber">
+                                    {cluster.count} in org
+                                  </span>
+                                )}
+                              </td>
+                              <td className="hidden px-4 py-2.5 text-[12px] text-ink-mid sm:table-cell">
+                                {member.leadCompany || "—"}
+                              </td>
+                              <td className="px-4 py-2.5 text-right">
+                                <button
+                                  onClick={() => removeMember(member.id)}
+                                  className="cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

@@ -108,6 +108,15 @@ Open [http://localhost:3000](http://localhost:3000). Sign in via Outlook or Goog
 
 ---
 
+## Backend (Docker & AWS ECR)
+
+The Python FastAPI backend in `backend/` can be run with Docker and pushed to AWS ECR:
+
+- **Build & run locally:** See [backend/DOCKER.md](backend/DOCKER.md).
+- **Push to ECR:** From `backend/`, run `./scripts/push-ecr.sh` (or use the PowerShell steps in that doc). One-time: `aws ecr create-repository --repository-name agent-outreach-backend --region us-east-1`.
+
+---
+
 ## Project structure
 
 ```
