@@ -12,6 +12,7 @@ import {
   FileText,
   Sparkles,
   MessageSquareText,
+  Loader2,
 } from "lucide-react";
 import {
   useTrainingStore,
@@ -116,6 +117,15 @@ export default function TrainingPage() {
     e.stopPropagation();
     await duplicateConfig(config.id);
   };
+
+  if (loading && configs.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-copper" />
+        <p className="text-[13px] text-ink-mid">Loading AI profiles…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1080px] px-10 py-12">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, GitBranch, Trash2, Pencil, Play, Pause, Users } from "lucide-react";
+import { Plus, GitBranch, Trash2, Pencil, Play, Pause, Users, Loader2 } from "lucide-react";
 import { useSequenceStore, type Sequence, type SequenceStatus } from "@/store/sequences";
 import SequenceBuilder from "@/components/SequenceBuilder";
 import clsx from "clsx";
@@ -46,6 +46,15 @@ export default function SequencesPage() {
     const next: SequenceStatus = seq.status === "active" ? "paused" : "active";
     await updateSequence(seq.id, { status: next });
   };
+
+  if (loading && sequences.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-copper" />
+        <p className="text-[13px] text-ink-mid">Loading sequences…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1080px] px-10 py-12">

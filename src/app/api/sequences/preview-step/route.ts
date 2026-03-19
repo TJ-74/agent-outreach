@@ -8,6 +8,8 @@ export interface LeadPreview {
   leadName: string;
   email: string;
   company: string;
+  /** Lead's LinkedIn profile URL when stored */
+  linkedIn: string;
   subject: string;
   body: string;
   isHtml: boolean;
@@ -33,6 +35,7 @@ interface LeadRow {
   company: string | null;
   job_title: string | null;
   research: string | null;
+  linked_in: string | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
       .neq("status", "completed"),
     supabase
       .from("leads")
-      .select("id, first_name, last_name, email, company, job_title, research")
+      .select("id, first_name, last_name, email, company, job_title, research, linked_in")
       .in("id", leadIds),
   ]);
 
@@ -88,6 +91,7 @@ export async function POST(req: NextRequest) {
         leadName,
         email: lead.email,
         company: lead.company ?? "",
+        linkedIn: lead.linked_in?.trim() ?? "",
         subject: enrollment.generated_subject ?? "",
         body: enrollment.generated_body ?? "",
         isHtml: enrollment.is_html ?? false,
@@ -120,6 +124,7 @@ export async function POST(req: NextRequest) {
       leadName,
       email: lead.email,
       company: lead.company ?? "",
+      linkedIn: lead.linked_in?.trim() ?? "",
       subject,
       body,
       isHtml,

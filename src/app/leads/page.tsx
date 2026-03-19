@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { Search, Plus, Trash2, ExternalLink, Users, Mail, Pencil, MessageSquare, FileText, Upload } from "lucide-react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Search, Plus, Trash2, ExternalLink, Users, Mail, Pencil, MessageSquare, FileText, Upload, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLeadStore, type Lead, type ActionNeeded } from "@/store/leads";
 import { useOutlookStore } from "@/store/outlook";
 import { useGoogleStore } from "@/store/google";
-import { useUnreadStore } from "@/store/unread";
 import { useDraftStore } from "@/store/drafts";
 import ActionBadge from "@/components/StatusBadge";
 import CreateLeadModal from "@/components/CreateLeadModal";
@@ -23,12 +22,12 @@ const tabs: { label: string; value: ActionNeeded | "all" }[] = [
 ];
 
 export default function LeadsPage() {
-  const { leads, searchQuery, filterStatus, setSearch, setFilter, deleteLead, fetchLeads } =
-    useLeadStore();
+  const {
+    leads, loading, searchQuery, filterStatus, page, pageSize, totalCount,
+    setSearch, setFilter, setPage, deleteLead, fetchLeads,
+  } = useLeadStore();
   const { checkConnection: checkOutlookConnection } = useOutlookStore();
   const { checkConnection: checkGoogleConnection } = useGoogleStore();
-  const unreadByLead = useUnreadStore((s) => s.unreadByLead);
-  const markRead = useUnreadStore((s) => s.markRead);
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
@@ -46,30 +45,39 @@ export default function LeadsPage() {
     [leads]
   );
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, totalCount);
+
   useEffect(() => {
     checkOutlookConnection();
     checkGoogleConnection();
-    fetchLeads();
     fetchDraftCounts();
-  }, [checkOutlookConnection, checkGoogleConnection, fetchLeads, fetchDraftCounts]);
+  }, [checkOutlookConnection, checkGoogleConnection, fetchDraftCounts]);
 
-  const filtered = useMemo(() => {
-    let result = leads;
-    if (filterStatus !== "all") {
-      result = result.filter((l) => l.actionNeeded === filterStatus);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialMount = useRef(true);
+
+  useEffect(() => {
+    if (initialMount.current) {
+      initialMount.current = false;
+      fetchLeads();
+      return;
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (l) =>
-          l.firstName.toLowerCase().includes(q) ||
-          l.lastName.toLowerCase().includes(q) ||
-          l.email.toLowerCase().includes(q) ||
-          l.company.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [leads, filterStatus, searchQuery]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchLeads(), 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (initialMount.current) return;
+    fetchLeads();
+  }, [page, filterStatus]);
+
+  const goToPage = useCallback((p: number) => {
+    if (p < 1 || p > totalPages) return;
+    setPage(p);
+  }, [totalPages, setPage]);
 
   const handleGenerateReplies = async () => {
     if (needsReplyLeads.length === 0) return;
@@ -94,6 +102,15 @@ export default function LeadsPage() {
       setGeneratingReplies(false);
     }
   };
+
+  if (loading && leads.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-copper" />
+        <p className="text-[13px] text-ink-mid">Loading leads…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1080px] px-10 py-12">
@@ -174,70 +191,79 @@ export default function LeadsPage() {
       </div>
 
       {/* Table */}
-      {filtered.length > 0 ? (
-        <div className="overflow-hidden rounded-[16px] border border-edge bg-surface shadow-xs">
-          <table className="w-full">
+      {leads.length > 0 ? (
+        <div className="overflow-x-auto rounded-[16px] border border-edge bg-surface shadow-xs">
+          <table className="w-full table-fixed min-w-[700px]">
+            <colgroup>
+              <col className="w-[22%]" />
+              <col className="w-[24%]" />
+              <col className="hidden md:table-column w-[16%]" />
+              <col className="hidden lg:table-column w-[16%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-edge bg-cream">
-                <th className="px-6 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                <th className="px-5 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
                   Name
                 </th>
-                <th className="px-6 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                <th className="px-5 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
                   Email
                 </th>
-                <th className="hidden px-6 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light md:table-cell">
+                <th className="hidden px-5 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light md:table-cell">
                   Company
                 </th>
-                <th className="hidden px-6 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light lg:table-cell">
+                <th className="hidden px-5 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light lg:table-cell">
                   Title
                 </th>
-                <th className="px-6 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                <th className="px-5 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
                   Status
                 </th>
-                <th className="px-6 py-3.5 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                <th className="px-5 py-3.5 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-edge">
-              {filtered.map((lead, i) => (
+              {leads.map((lead, i) => (
                 <tr
                   key={lead.id}
                   onClick={() => setSelectedLeadId(lead.id)}
                   className="animate-fade-up cursor-pointer transition-colors duration-150 hover:bg-cream/60"
                   style={{ animationDelay: `${i * 35}ms` }}
                 >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[13px] font-semibold text-ink">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-ink">
                         {lead.firstName} {lead.lastName}
                       </p>
-                      {(unreadByLead[lead.id] ?? 0) > 0 && (
-                        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-copper px-1 text-[10px] font-bold text-white">
-                          {unreadByLead[lead.id]}
-                        </span>
-                      )}
                       {(draftCountByLead[lead.id] ?? 0) > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 border border-blue-200">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 border border-blue-200">
                           <FileText className="h-3 w-3" />
                           {draftCountByLead[lead.id] === 1 ? "Draft" : `${draftCountByLead[lead.id]} Drafts`}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[13px] text-ink-mid">
-                    {lead.email}
+                  <td className="px-5 py-4">
+                    <span className="block truncate text-[13px] text-ink-mid">
+                      {lead.email}
+                    </span>
                   </td>
-                  <td className="hidden px-6 py-4 text-[13px] text-ink-mid md:table-cell">
-                    {lead.company || "\u2014"}
+                  <td className="hidden px-5 py-4 md:table-cell">
+                    <span className="block truncate text-[13px] text-ink-mid">
+                      {lead.company || "\u2014"}
+                    </span>
                   </td>
-                  <td className="hidden px-6 py-4 text-[13px] text-ink-mid lg:table-cell">
-                    {lead.jobTitle || "\u2014"}
+                  <td className="hidden px-5 py-4 lg:table-cell">
+                    <span className="block truncate text-[13px] text-ink-mid">
+                      {lead.jobTitle || "\u2014"}
+                    </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-5 py-4">
                     <ActionBadge action={lead.actionNeeded} />
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => setEditLead(lead)}
@@ -276,7 +302,7 @@ export default function LeadsPage() {
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : !loading ? (
         <div className="flex flex-col items-center rounded-[20px] border border-dashed border-edge-strong bg-surface py-20">
           <div className="rounded-[14px] bg-copper-light p-5">
             <Users className="h-7 w-7 text-copper" strokeWidth={1.6} />
@@ -301,6 +327,57 @@ export default function LeadsPage() {
             </button>
           )}
         </div>
+      ) : null}
+
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="mt-4 flex items-center justify-between rounded-[12px] border border-edge bg-surface px-5 py-3 shadow-xs">
+          <p className="text-[12px] text-ink-mid">
+            Showing <span className="font-semibold text-ink">{rangeStart}–{rangeEnd}</span> of{" "}
+            <span className="font-semibold text-ink">{totalCount}</span> lead{totalCount !== 1 ? "s" : ""}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => goToPage(page - 1)}
+              disabled={page <= 1}
+              className="cursor-pointer rounded-[8px] p-[7px] text-ink-mid transition-colors hover:bg-cream hover:text-ink disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | "ellipsis")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((item, idx) =>
+                item === "ellipsis" ? (
+                  <span key={`e${idx}`} className="px-1 text-[12px] text-ink-light">…</span>
+                ) : (
+                  <button
+                    key={item}
+                    onClick={() => goToPage(item)}
+                    className={clsx(
+                      "cursor-pointer rounded-[8px] px-2.5 py-[5px] text-[12px] font-semibold transition-colors",
+                      page === item
+                        ? "bg-copper text-white shadow-xs"
+                        : "text-ink-mid hover:bg-cream hover:text-ink"
+                    )}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => goToPage(page + 1)}
+              disabled={page >= totalPages}
+              className="cursor-pointer rounded-[8px] p-[7px] text-ink-mid transition-colors hover:bg-cream hover:text-ink disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       )}
 
       <CreateLeadModal open={modalOpen} onClose={() => setModalOpen(false)} />
@@ -311,7 +388,6 @@ export default function LeadsPage() {
         <LeadThreadPanel
           lead={selectedLead}
           onClose={() => setSelectedLeadId(null)}
-          onOpen={() => markRead(selectedLead.id)}
         />
       )}
     </div>

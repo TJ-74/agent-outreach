@@ -137,7 +137,13 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                 className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
               />
             </div>
-            <div className="flex items-center gap-2 ml-4">
+            <div className="flex items-center gap-2 ml-4 shrink-0">
+              <button
+                onClick={onClose}
+                className="cursor-pointer rounded-[8px] border border-edge px-3.5 py-[7px] text-[12px] font-semibold text-ink-mid transition-all hover:bg-cream hover:text-ink"
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleSave}
                 disabled={saving || !name.trim()}
@@ -145,9 +151,6 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Save
-              </button>
-              <button onClick={onClose} className="cursor-pointer rounded-[8px] p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid">
-                <X className="h-[18px] w-[18px]" />
               </button>
             </div>
           </div>
@@ -195,42 +198,65 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                   </div>
 
                   {showDropdown && filteredLeads.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-[240px] overflow-y-auto rounded-[10px] border border-edge bg-surface shadow-md">
-                      {filteredLeads.slice(0, 20).map((lead) => {
-                        const isSelected = selectedLeadIds.includes(lead.id);
-                        return (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 flex max-h-[280px] flex-col rounded-[10px] border border-edge bg-surface shadow-md">
+                      <div className="flex-1 overflow-y-auto">
+                        {filteredLeads.slice(0, 20).map((lead) => {
+                          const isSelected = selectedLeadIds.includes(lead.id);
+                          return (
+                            <button
+                              key={lead.id}
+                              onClick={() => toggleLeadSelection(lead.id)}
+                              className={`flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                                isSelected ? "bg-copper-light" : "hover:bg-cream"
+                              }`}
+                            >
+                              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border-[1.5px] ${
+                                isSelected ? "border-copper bg-copper" : "border-edge-strong"
+                              }`}>
+                                {isSelected && (
+                                  <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-[12px] font-semibold text-ink">
+                                  {lead.firstName} {lead.lastName}
+                                </p>
+                                <p className="truncate text-[11px] text-ink-mid">
+                                  {lead.email}{lead.company ? ` · ${lead.company}` : ""}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedLeadIds.length > 0 && (
+                        <div className="flex items-center gap-2 border-t border-edge bg-cream/60 px-4 py-2.5">
+                          <span className="flex-1 text-[12px] font-medium text-ink-mid">
+                            {selectedLeadIds.length} selected
+                          </span>
                           <button
-                            key={lead.id}
-                            onClick={() => toggleLeadSelection(lead.id)}
-                            className={`flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                              isSelected ? "bg-copper-light" : "hover:bg-cream"
-                            }`}
+                            onClick={() => setSelectedLeadIds([])}
+                            className="cursor-pointer text-[11px] font-medium text-ink-light hover:text-ink-mid"
                           >
-                            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border-[1.5px] ${
-                              isSelected ? "border-copper bg-copper" : "border-edge-strong"
-                            }`}>
-                              {isSelected && (
-                                <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[12px] font-semibold text-ink">
-                                {lead.firstName} {lead.lastName}
-                              </p>
-                              <p className="truncate text-[11px] text-ink-mid">
-                                {lead.email}{lead.company ? ` · ${lead.company}` : ""}
-                              </p>
-                            </div>
+                            Clear
                           </button>
-                        );
-                      })}
+                          <button
+                            onClick={handleAddSelected}
+                            disabled={adding}
+                            className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-sage px-3 py-[5px] text-[12px] font-semibold text-white transition-all hover:bg-sage/90 disabled:opacity-50"
+                          >
+                            {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                            Add to Group
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {selectedLeadIds.length > 0 && (
+                {!showDropdown && selectedLeadIds.length > 0 && (
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-[12px] text-ink-mid">
                       {selectedLeadIds.length} lead{selectedLeadIds.length !== 1 ? "s" : ""} selected

@@ -22,10 +22,21 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
   Globe,
   RefreshCw,
   BrainCircuit,
+  Linkedin,
 } from "lucide-react";
 import type { LeadPreview } from "@/app/api/sequences/preview-step/route";
 import { extractDomain, clusterByDomain } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
+import dynamic from "next/dynamic";
+
+const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-10">
+      <div className="h-4 w-4 animate-spin rounded-full border-2 border-copper border-t-transparent" />
+    </div>
+  ),
+});
 
 interface Props {
   sequenceId: string;
@@ -36,10 +47,19 @@ interface Props {
   standalone?: boolean;
 }
 
+function normalizeLinkedInUrl(url: string): string {
+  const t = url.trim();
+  if (!t) return "";
+  if (/^https?:\/\//i.test(t)) return t;
+  return `https://${t.replace(/^\/+/, "")}`;
+}
+
+const IFRAME_FONT_STYLE = `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:#2C2925}</style>`;
+
 function HtmlPreview({ html }: { html: string }) {
   return (
     <iframe
-      srcDoc={html}
+      srcDoc={IFRAME_FONT_STYLE + html}
       sandbox="allow-same-origin"
       className="w-full bg-white"
       style={{ border: "none", minHeight: 220 }}
@@ -245,13 +265,26 @@ export default function SequenceApprovalPanel({
     [],
   );
 
+  const textToHtml = useCallback((text: string) => {
+    if (!text) return "";
+    if (text.trim().startsWith("<")) return text;
+    return text
+      .split("\n\n")
+      .map((block) => {
+        const lines = block.split("\n").join("<br/>");
+        return `<p>${lines}</p>`;
+      })
+      .join("");
+  }, []);
+
   const startEdit = useCallback(() => {
     if (!current) return;
     const override = edits[current.enrollmentId];
     setDraftSubject(override?.subject ?? current.subject);
-    setDraftBody(override?.body ?? current.body);
+    const body = override?.body ?? current.body;
+    setDraftBody(textToHtml(body));
     setEditingId(current.enrollmentId);
-  }, [current, edits]);
+  }, [current, edits, textToHtml]);
 
   const saveEdit = useCallback(() => {
     if (!current) return;
@@ -260,7 +293,7 @@ export default function SequenceApprovalPanel({
       [current.enrollmentId]: { subject: draftSubject, body: draftBody },
     }));
     setEditingId(null);
-    persistDraft(current.enrollmentId, draftSubject, draftBody, current.isHtml);
+    persistDraft(current.enrollmentId, draftSubject, draftBody, true);
   }, [current, draftSubject, draftBody, persistDraft]);
 
   const cancelEdit = useCallback(() => {
@@ -312,7 +345,10 @@ export default function SequenceApprovalPanel({
       }
 
       const { subject, body, research } = await res.json();
-      setAiDrafts((prev) => ({ ...prev, [eid]: { subject, body } }));
+      const htmlBody = textToHtml(body);
+      setAiDrafts((prev) => ({ ...prev, [eid]: { subject, body: htmlBody } }));
+      setDraftSubject(subject);
+      setDraftBody(htmlBody);
       if (research && current.leadId) {
         setLeadResearch((prev) => ({ ...prev, [current.leadId]: research }));
       }
@@ -323,7 +359,7 @@ export default function SequenceApprovalPanel({
     } finally {
       setRewritingId(null);
     }
-  }, [current, edits, editingId, sequenceId, setCardState]);
+  }, [current, edits, editingId, sequenceId, textToHtml, setCardState]);
 
   const handleRedoEmail = useCallback(async () => {
     if (!current) return;
@@ -355,7 +391,10 @@ export default function SequenceApprovalPanel({
       }
 
       const { subject, body } = await res.json();
-      setAiDrafts((prev) => ({ ...prev, [eid]: { subject, body } }));
+      const htmlBody = textToHtml(body);
+      setAiDrafts((prev) => ({ ...prev, [eid]: { subject, body: htmlBody } }));
+      setDraftSubject(subject);
+      setDraftBody(htmlBody);
       if (editingId === eid) setEditingId(null);
     } catch {
       setErrors((prev) => ({ ...prev, [eid]: "Network error during regeneration" }));
@@ -363,7 +402,7 @@ export default function SequenceApprovalPanel({
     } finally {
       setRewritingId(null);
     }
-  }, [current, edits, editingId, sequenceId, setCardState]);
+  }, [current, edits, editingId, sequenceId, textToHtml, setCardState]);
 
   const handleRedoResearch = useCallback(async () => {
     if (!current) return;
@@ -406,16 +445,18 @@ export default function SequenceApprovalPanel({
 
   const acceptAiDraft = useCallback(() => {
     if (!current) return;
-    const draft = aiDrafts[current.enrollmentId];
-    if (!draft) return;
-    setEdits((prev) => ({ ...prev, [current.enrollmentId]: draft }));
+    if (!aiDrafts[current.enrollmentId]) return;
+    // Use the (possibly user-edited) draft values
+    const subject = draftSubject;
+    const body = draftBody;
+    setEdits((prev) => ({ ...prev, [current.enrollmentId]: { subject, body } }));
     setAiDrafts((prev) => {
       const next = { ...prev };
       delete next[current.enrollmentId];
       return next;
     });
-    persistDraft(current.enrollmentId, draft.subject, draft.body, current.isHtml);
-  }, [current, aiDrafts, persistDraft]);
+    persistDraft(current.enrollmentId, subject, body, true);
+  }, [current, aiDrafts, draftSubject, draftBody, persistDraft]);
 
   const rejectAiDraft = useCallback(() => {
     if (!current) return;
@@ -442,6 +483,7 @@ export default function SequenceApprovalPanel({
     const override = edits[current.enrollmentId];
     const finalSubject = override?.subject ?? current.subject;
     const finalBody = override?.body ?? current.body;
+    const finalIsHtml = override ? true : current.isHtml;
 
     setCardState(current.enrollmentId, "approving");
     setErrors((prev) => ({ ...prev, [current.enrollmentId]: "" }));
@@ -456,7 +498,7 @@ export default function SequenceApprovalPanel({
           sequenceId,
           subject: finalSubject,
           body: finalBody,
-          isHtml: current.isHtml,
+          isHtml: finalIsHtml,
         }),
       });
 
@@ -871,15 +913,30 @@ export default function SequenceApprovalPanel({
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-[14px] font-semibold text-ink">{current.leadName}</p>
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
                       <span className="truncate text-[12px] text-ink-mid">{current.email}</span>
                       {current.company && (
                         <>
-                          <span className="text-ink-faint">·</span>
-                          <span className="flex shrink-0 items-center gap-1 text-[11px] text-ink-light">
-                            <Building2 className="h-3 w-3" />
-                            {current.company}
+                          <span className="text-ink-faint shrink-0">·</span>
+                          <span className="flex min-w-0 max-w-[min(100%,280px)] items-center gap-1 text-[11px] text-ink-light">
+                            <Building2 className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{current.company}</span>
                           </span>
+                        </>
+                      )}
+                      {current.linkedIn?.trim() && (
+                        <>
+                          <span className="text-ink-faint shrink-0">·</span>
+                          <a
+                            href={normalizeLinkedInUrl(current.linkedIn)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-[7px] px-1.5 py-[3px] text-[11px] font-medium text-ink-light transition-colors hover:bg-sage-light hover:text-sage"
+                            title="Open LinkedIn profile"
+                          >
+                            <Linkedin className="h-3.5 w-3.5" />
+                            LinkedIn
+                          </a>
                         </>
                       )}
                     </div>
@@ -984,7 +1041,7 @@ export default function SequenceApprovalPanel({
                       </button>
                     </div>
                   </div>
-                  <p className="mt-1 text-[11px] text-ink-mid">Review the AI version below. Accept to use it, or reject to keep the original.</p>
+                  <p className="mt-1 text-[11px] text-ink-mid">Edit the AI draft directly below, then Accept to send or Reject to keep the original.</p>
                 </div>
               )}
 
@@ -1119,28 +1176,42 @@ export default function SequenceApprovalPanel({
                 {/* Subject bar */}
                 <div className="flex items-center gap-3 border-b border-edge px-5 py-3">
                   <Mail className="h-4 w-4 shrink-0 text-ink-light" />
-                  {rewritingId === current.enrollmentId && editingId !== current.enrollmentId ? (
+                  {rewritingId === current.enrollmentId && !hasAiDraft ? (
                     <SkeletonLine className="h-4 w-2/5 flex-1" />
-                  ) : editingId === current.enrollmentId ? (
+                  ) : editingId === current.enrollmentId || hasAiDraft ? (
                     <input
-                      autoFocus
-                      value={draftSubject}
+                      autoFocus={editingId === current.enrollmentId}
+                      value={hasAiDraft ? draftSubject : draftSubject}
                       onChange={(e) => setDraftSubject(e.target.value)}
                       placeholder="Subject…"
                       className="flex-1 bg-transparent text-[14px] font-semibold text-ink outline-none placeholder:text-ink-faint"
                     />
                   ) : (
                     <p className="text-[14px] font-semibold text-ink flex-1 min-w-0 truncate">
-                      {(currentAiDraft?.subject ?? edits[current.enrollmentId]?.subject ?? current.subject) || "(No subject)"}
+                      {(edits[current.enrollmentId]?.subject ?? current.subject) || "(No subject)"}
                     </p>
                   )}
                   {/* Edit / Done / Reset / AI draft buttons */}
                   <div className="ml-auto flex shrink-0 items-center gap-1">
                     {hasAiDraft ? (
-                      <span className="rounded-full bg-copper-light px-2.5 py-[2px] text-[9px] font-bold uppercase text-copper flex items-center gap-1">
-                        <Sparkles className="h-2.5 w-2.5" />
-                        AI Draft
-                      </span>
+                      <>
+                        <span className="rounded-full bg-copper-light px-2.5 py-[2px] text-[9px] font-bold uppercase text-copper flex items-center gap-1 mr-1">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          AI Draft
+                        </span>
+                        <button
+                          onClick={handleRedoEmail}
+                          disabled={rewritingId === current.enrollmentId}
+                          title="Redo AI generation"
+                          className="cursor-pointer rounded-[6px] p-1.5 text-ink-light transition-colors hover:bg-copper-light hover:text-copper disabled:opacity-40"
+                        >
+                          {rewritingId === current.enrollmentId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-copper" />
+                          ) : (
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </>
                     ) : editingId === current.enrollmentId ? (
                       <>
                         <button
@@ -1216,19 +1287,19 @@ export default function SequenceApprovalPanel({
                 </div>
 
                 {/* Body */}
-                <div className="px-5 py-4 min-h-[180px]">
-                  {rewritingId === current.enrollmentId && editingId !== current.enrollmentId ? (
-                    <EmailSkeleton hasResearch={!!(leadResearch[current.leadId] || current.research)} />
-                  ) : editingId === current.enrollmentId ? (
-                    <textarea
-                      value={draftBody}
-                      onChange={(e) => setDraftBody(e.target.value)}
-                      placeholder="Email body…"
-                      rows={10}
-                      className="w-full resize-y bg-transparent text-[13px] leading-[1.7] text-ink-mid outline-none placeholder:text-ink-faint"
+                <div className="min-h-[340px]">
+                  {rewritingId === current.enrollmentId && !hasAiDraft ? (
+                    <div className="px-5 py-4">
+                      <EmailSkeleton hasResearch={!!(leadResearch[current.leadId] || current.research)} />
+                    </div>
+                  ) : editingId === current.enrollmentId || hasAiDraft ? (
+                    <RichTextEditor
+                      content={draftBody}
+                      onChange={setDraftBody}
+                      placeholder="Write your email…"
                     />
-                  ) : emailIsEmpty && !hasAiDraft ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                  ) : emailIsEmpty ? (
+                    <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-copper-light">
                         <Sparkles className="h-5 w-5 text-copper" />
                       </div>
@@ -1245,15 +1316,17 @@ export default function SequenceApprovalPanel({
                         Generate with AI
                       </button>
                     </div>
-                  ) : hasAiDraft ? (
-                    <p className="whitespace-pre-wrap text-[13px] leading-[1.7] text-ink-mid">
-                      {currentAiDraft.body || "(No body)"}
-                    </p>
-                  ) : current.isHtml && !edits[current.enrollmentId] ? (
-                    <HtmlPreview html={current.body} />
+                  ) : edits[current.enrollmentId] ? (
+                    <div className="px-5 py-4">
+                      <HtmlPreview html={edits[current.enrollmentId].body} />
+                    </div>
+                  ) : current.isHtml ? (
+                    <div className="px-5 py-4">
+                      <HtmlPreview html={current.body} />
+                    </div>
                   ) : (
-                    <p className="whitespace-pre-wrap text-[13px] leading-[1.7] text-ink-mid">
-                      {(edits[current.enrollmentId]?.body ?? current.body) || "(No body)"}
+                    <p className="px-5 py-4 whitespace-pre-wrap text-[13px] leading-[1.7] text-ink-mid">
+                      {current.body || "(No body)"}
                     </p>
                   )}
                 </div>

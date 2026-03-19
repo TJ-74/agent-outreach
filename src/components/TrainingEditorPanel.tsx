@@ -15,6 +15,7 @@ import {
   Brain,
   CheckCircle,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import {
   useTrainingStore,
@@ -210,6 +211,37 @@ export default function TrainingEditorPanel({
     markDirty();
   };
   const removeExampleEmail = (i: number) => { setExampleEmails((prev) => prev.filter((_, idx) => idx !== i)); markDirty(); };
+
+  const [editingExampleIdx, setEditingExampleIdx] = useState<number | null>(null);
+  const [editExLabel, setEditExLabel] = useState("");
+  const [editExSubject, setEditExSubject] = useState("");
+  const [editExBody, setEditExBody] = useState("");
+
+  const startEditExample = (i: number) => {
+    const ex = exampleEmails[i];
+    setEditingExampleIdx(i);
+    setEditExLabel(ex.label);
+    setEditExSubject(ex.subject);
+    setEditExBody(ex.body);
+  };
+
+  const saveEditExample = () => {
+    if (editingExampleIdx === null) return;
+    if (!editExSubject.trim() && !editExBody.trim()) return;
+    setExampleEmails((prev) =>
+      prev.map((ex, idx) =>
+        idx === editingExampleIdx
+          ? { label: editExLabel.trim() || "Example", subject: editExSubject.trim(), body: editExBody.trim() }
+          : ex
+      )
+    );
+    setEditingExampleIdx(null);
+    markDirty();
+  };
+
+  const cancelEditExample = () => {
+    setEditingExampleIdx(null);
+  };
 
   // Tab counts for badges
   const voiceComplete = [senderName, companyName, brandVoice].filter((s) => s.trim()).length;
@@ -441,23 +473,76 @@ export default function TrainingEditorPanel({
                 Reference emails that show the exact style you want. The more examples, the better the AI learns.
               </p>
 
-              {exampleEmails.map((email, i) => (
-                <div key={i} className="group rounded-[10px] border border-edge bg-cream/40 transition-colors hover:border-edge-strong">
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge/60">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-ink-light" />
-                      <span className="text-[12px] font-semibold text-ink truncate">{email.label}</span>
+              {exampleEmails.map((email, i) =>
+                editingExampleIdx === i ? (
+                  <div key={i} className="rounded-[10px] border border-copper/30 bg-surface p-4 space-y-3 animate-fade-up">
+                    <input
+                      type="text"
+                      value={editExLabel}
+                      onChange={(e) => setEditExLabel(e.target.value)}
+                      placeholder="Label (e.g. 'Cold outreach — SaaS CEO')"
+                      className="w-full rounded-[8px] border border-edge bg-surface px-3.5 py-[8px] text-[13px] text-ink placeholder:text-ink-light outline-none transition-all focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                    />
+                    <input
+                      type="text"
+                      value={editExSubject}
+                      onChange={(e) => setEditExSubject(e.target.value)}
+                      placeholder="Subject line..."
+                      className="w-full rounded-[8px] border border-edge bg-surface px-3.5 py-[8px] text-[13px] font-semibold text-ink placeholder:text-ink-light outline-none transition-all focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                    />
+                    <textarea
+                      value={editExBody}
+                      onChange={(e) => setEditExBody(e.target.value)}
+                      placeholder="Paste or write the full email body..."
+                      rows={6}
+                      className="w-full resize-y rounded-[8px] border border-edge bg-surface px-3.5 py-2.5 text-[13px] leading-[1.6] text-ink placeholder:text-ink-light outline-none transition-all focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={cancelEditExample}
+                        className="cursor-pointer rounded-[8px] px-3 py-[6px] text-[12px] font-medium text-ink-mid hover:bg-cream"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveEditExample}
+                        disabled={!editExSubject.trim() && !editExBody.trim()}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-copper px-3.5 py-[6px] text-[12px] font-semibold text-white transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-40"
+                      >
+                        <Save className="h-3 w-3" />
+                        Save
+                      </button>
                     </div>
-                    <button onClick={() => removeExampleEmail(i)} className="cursor-pointer shrink-0 rounded-[6px] p-1 text-ink-light opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-light hover:text-rose">
-                      <Trash2 className="h-3 w-3" />
-                    </button>
                   </div>
-                  <div className="px-4 py-3">
-                    {email.subject && <p className="text-[12px] font-semibold text-ink">Subject: {email.subject}</p>}
-                    <p className="mt-1 text-[12px] leading-[1.6] text-ink-mid whitespace-pre-wrap line-clamp-4">{email.body}</p>
+                ) : (
+                  <div key={i} className="group rounded-[10px] border border-edge bg-cream/40 transition-colors hover:border-edge-strong">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge/60">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-ink-light" />
+                        <span className="text-[12px] font-semibold text-ink truncate">{email.label}</span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => startEditExample(i)}
+                          className="cursor-pointer shrink-0 rounded-[6px] p-1 text-ink-light opacity-0 transition-all group-hover:opacity-100 hover:bg-cream-deep hover:text-ink"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => removeExampleEmail(i)}
+                          className="cursor-pointer shrink-0 rounded-[6px] p-1 text-ink-light opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-light hover:text-rose"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      {email.subject && <p className="text-[12px] font-semibold text-ink">Subject: {email.subject}</p>}
+                      <p className="mt-1 text-[12px] leading-[1.6] text-ink-mid whitespace-pre-wrap line-clamp-4">{email.body}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              )}
 
               {showEmailForm ? (
                 <div className="rounded-[10px] border border-copper/30 bg-surface p-4 space-y-3 animate-fade-up">

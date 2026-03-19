@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Brain,
 } from "lucide-react";
+import CustomSelect from "@/components/CustomSelect";
 import {
   useSequenceStore,
   type Sequence,
@@ -63,10 +64,12 @@ function looksLikeHtml(content: string): boolean {
   return /<[a-zA-Z][\s\S]*?>/m.test(content.trim());
 }
 
+const IFRAME_FONT_STYLE = `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:#2C2925}</style>`;
+
 function HtmlPreview({ html, className }: { html: string; className?: string }) {
   return (
     <iframe
-      srcDoc={html}
+      srcDoc={IFRAME_FONT_STYLE + html}
       sandbox="allow-same-origin"
       className={className}
       style={{ border: "none", width: "100%", display: "block" }}
@@ -417,18 +420,19 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
               </p>
 
               <div className="flex items-center gap-2">
-                <select
+                <CustomSelect
                   value={selectedGroupId ?? ""}
-                  onChange={(e) => setSelectedGroupId(e.target.value || null)}
-                  className="flex-1 cursor-pointer rounded-[8px] border border-edge bg-surface px-3 py-[8px] text-[13px] text-ink outline-none transition-all hover:border-edge-strong focus:border-copper focus:ring-[3px] focus:ring-copper-light"
-                >
-                  <option value="">Select a group...</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name} ({g.memberCount ?? 0} members)
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedGroupId(val || null)}
+                  placeholder="Select a group..."
+                  className="flex-1"
+                  options={[
+                    { value: "", label: "Select a group..." },
+                    ...groups.map((g) => ({
+                      value: g.id,
+                      label: `${g.name} (${g.memberCount ?? 0} members)`,
+                    })),
+                  ]}
+                />
 
                 <button
                   onClick={handleAssignGroup}
@@ -597,25 +601,26 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
               </p>
 
               <div className="flex items-center gap-2">
-                <select
+                <CustomSelect
                   value={selectedTrainingId ?? ""}
-                  onChange={(e) => {
-                    const val = e.target.value || null;
-                    setSelectedTrainingId(val);
-                    if (seqId) updateSequence(seqId, { trainingConfigId: val });
+                  onChange={(val) => {
+                    const v = val || null;
+                    setSelectedTrainingId(v);
+                    if (seqId) updateSequence(seqId, { trainingConfigId: v });
                   }}
-                  className="flex-1 cursor-pointer rounded-[8px] border border-edge bg-surface px-3 py-[8px] text-[13px] text-ink outline-none transition-all hover:border-edge-strong focus:border-copper focus:ring-[3px] focus:ring-copper-light"
-                >
-                  <option value="">No training profile</option>
-                  {trainingConfigs.map((tc) => {
-                    const tone = getToneOption(tc.tone);
-                    return (
-                      <option key={tc.id} value={tc.id}>
-                        {tc.name} ({tone.label})
-                      </option>
-                    );
-                  })}
-                </select>
+                  placeholder="No training profile"
+                  className="flex-1"
+                  options={[
+                    { value: "", label: "No training profile" },
+                    ...trainingConfigs.map((tc) => {
+                      const tone = getToneOption(tc.tone);
+                      return {
+                        value: tc.id,
+                        label: `${tc.name} (${tone.label})`,
+                      };
+                    }),
+                  ]}
+                />
 
                 {selectedTrainingId && (
                   <button

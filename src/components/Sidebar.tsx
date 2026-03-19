@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Settings, Zap, GitBranch, FolderOpen, Bell, CheckCircle, Brain } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Zap, GitBranch, FolderOpen, CheckCircle, Brain, Inbox } from "lucide-react";
 import clsx from "clsx";
-import { useUnreadStore } from "@/store/unread";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/sequences", label: "Sequences", icon: GitBranch },
   { href: "/approval", label: "Approval", icon: CheckCircle },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/groups", label: "Groups", icon: FolderOpen },
   { href: "/training", label: "AI Training", icon: Brain },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -18,7 +18,6 @@ const nav = [
 
 export default function Sidebar() {
   const path = usePathname();
-  const totalUnread = useUnreadStore((s) => s.totalUnread);
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-[272px] flex-col border-r border-edge bg-surface">
@@ -27,20 +26,12 @@ export default function Sidebar() {
         <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-copper shadow-copper">
           <Zap className="h-[18px] w-[18px] text-white" strokeWidth={2.5} />
         </div>
-        <div className="flex-1">
+        <div>
           <p className="font-[family-name:var(--font-display)] text-[15px] font-bold tracking-[-0.01em] text-ink">
             Agent Outreach
           </p>
           <p className="text-[11px] text-ink-light">Outreach Platform</p>
         </div>
-        <button className="relative cursor-pointer rounded-[8px] p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid">
-          <Bell className="h-[18px] w-[18px]" strokeWidth={1.8} />
-          {totalUnread > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-copper px-1 text-[10px] font-bold text-white shadow-xs">
-              {totalUnread > 99 ? "99+" : totalUnread}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* Nav */}

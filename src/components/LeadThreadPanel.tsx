@@ -54,7 +54,6 @@ interface ThreadGroup {
 interface Props {
   lead: Lead;
   onClose: () => void;
-  onOpen?: () => void;
 }
 
 function getUserId(): string | null {
@@ -84,6 +83,78 @@ function groupByThread(messages: Message[]): ThreadGroup[] {
   return groups;
 }
 
+function SimpleMarkdown({ text, className = "" }: { text: string; className?: string }) {
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let bulletBuffer: string[] = [];
+  let key = 0;
+
+  const flushBullets = () => {
+    if (bulletBuffer.length === 0) return;
+    elements.push(
+      <ul key={key++} className="my-2 space-y-1.5 pl-1">
+        {bulletBuffer.map((b, i) => (
+          <li key={i} className="flex gap-2.5 text-[13px] leading-[1.65] text-ink-mid">
+            <span className="mt-[9px] h-[5px] w-[5px] shrink-0 rounded-full bg-copper/50" />
+            <span>{inlineParse(b)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+    bulletBuffer = [];
+  };
+
+  const inlineParse = (str: string): React.ReactNode[] => {
+    const parts: React.ReactNode[] = [];
+    const re = /\*\*(.+?)\*\*/g;
+    let last = 0;
+    let match: RegExpExecArray | null;
+    let k = 0;
+    while ((match = re.exec(str)) !== null) {
+      if (match.index > last) parts.push(str.slice(last, match.index));
+      parts.push(<strong key={k++} className="font-semibold text-ink">{match[1]}</strong>);
+      last = re.lastIndex;
+    }
+    if (last < str.length) parts.push(str.slice(last));
+    return parts;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("## ")) {
+      flushBullets();
+      elements.push(
+        <h3 key={key++} className="mt-4 mb-1.5 flex items-center gap-2 text-[13px] font-bold text-ink first:mt-0">
+          <span className="h-[3px] w-[3px] rounded-full bg-copper" />
+          {inlineParse(trimmed.slice(3))}
+        </h3>
+      );
+    } else if (trimmed.startsWith("# ")) {
+      flushBullets();
+      elements.push(
+        <h2 key={key++} className="mt-5 mb-2 text-[15px] font-bold text-ink first:mt-0">
+          {inlineParse(trimmed.slice(2))}
+        </h2>
+      );
+    } else if (/^[-*•]\s/.test(trimmed)) {
+      bulletBuffer.push(trimmed.replace(/^[-*•]\s+/, ""));
+    } else if (trimmed === "") {
+      flushBullets();
+    } else {
+      flushBullets();
+      elements.push(
+        <p key={key++} className="my-1.5 text-[13px] leading-[1.7] text-ink-mid">
+          {inlineParse(trimmed)}
+        </p>
+      );
+    }
+  }
+  flushBullets();
+
+  return <div className={className}>{elements}</div>;
+}
+
 const SENTIMENT_STYLE: Record<string, { bg: string; text: string; label: string }> = {
   positive: { bg: "bg-sage-light", text: "text-sage", label: "Positive" },
   neutral: { bg: "bg-cream-deep", text: "text-ink-mid", label: "Neutral" },
@@ -99,7 +170,7 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   close: "Close",
 };
 
-export default function LeadThreadPanel({ lead, onClose, onOpen }: Props) {
+export default function LeadThreadPanel({ lead, onClose }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -140,7 +211,6 @@ export default function LeadThreadPanel({ lead, onClose, onOpen }: Props) {
     fetchThread();
     fetchDrafts(lead.id);
     fetchStoredSummaries();
-    onOpen?.();
   }, [lead.email, lead.id, fetchDrafts]);
 
   useEffect(() => {
@@ -1095,10 +1165,8 @@ function StepNode({
 
         {/* Expanded output */}
         {expanded && step.output && (
-          <div className="mt-1.5 ml-1 rounded-[8px] border border-edge/50 bg-cream-deep/40 px-3 py-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
-            <pre className="whitespace-pre-wrap text-[10px] leading-[1.7] text-ink-mid font-[family-name:var(--font-body)] max-h-[160px] overflow-y-auto">
-              {step.output}
-            </pre>
+          <div className="mt-1.5 ml-1 rounded-[8px] border border-edge/50 bg-cream-deep/40 px-3 py-2.5 max-h-[200px] overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+            <SimpleMarkdown text={step.output} className="text-[11px]" />
           </div>
         )}
       </div>
@@ -1216,12 +1284,12 @@ function AgentView({
 
             {/* Summary */}
             {summary && (
-              <div className="mt-4 rounded-[10px] border border-sage/30 bg-sage/5 px-4 py-3">
-                <div className="mb-2 flex items-center gap-2">
+              <div className="mt-4 rounded-[10px] border border-sage/30 bg-sage/5 px-4 py-4">
+                <div className="mb-3 flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-sage" />
                   <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-sage">Summary</span>
                 </div>
-                <p className="whitespace-pre-wrap text-[12px] leading-[1.7] text-ink">{summary}</p>
+                <SimpleMarkdown text={summary} />
               </div>
             )}
           </div>
@@ -1234,11 +1302,17 @@ function AgentView({
           <Search className="h-4 w-4 text-copper" />
           <span className="text-[13px] font-semibold text-ink">Research Profile</span>
         </div>
-        <div className="px-5 py-4">
+        <div className="px-5 py-5">
           {lead.research ? (
-            <pre className="whitespace-pre-wrap text-[12px] leading-[1.7] text-ink-mid font-[family-name:var(--font-body)]">{lead.research}</pre>
+            <SimpleMarkdown text={lead.research} />
           ) : (
-            <p className="text-[12px] text-ink-light italic">No research data yet. Click &ldquo;Analyze&rdquo; to trigger web research for this lead.</p>
+            <div className="flex flex-col items-center py-8">
+              <div className="rounded-[12px] bg-cream-deep p-4">
+                <Search className="h-5 w-5 text-ink-light" />
+              </div>
+              <p className="mt-3 text-[13px] font-medium text-ink-mid">No research yet</p>
+              <p className="mt-1 text-[12px] text-ink-light">Click &ldquo;Analyze&rdquo; to trigger web research for this lead.</p>
+            </div>
           )}
         </div>
       </div>
@@ -1314,10 +1388,8 @@ function AgentView({
                                   )}
                                 </button>
                                 {isExpanded && step.output && (
-                                  <div className="mt-1 ml-1 rounded-[6px] border border-edge/40 bg-cream-deep/40 px-3 py-2">
-                                    <pre className="whitespace-pre-wrap text-[10px] leading-[1.6] text-ink-mid font-[family-name:var(--font-body)] max-h-[120px] overflow-y-auto">
-                                      {step.output}
-                                    </pre>
+                                  <div className="mt-1 ml-1 rounded-[6px] border border-edge/40 bg-cream-deep/40 px-3 py-2 max-h-[160px] overflow-y-auto">
+                                    <SimpleMarkdown text={step.output} className="text-[11px]" />
                                   </div>
                                 )}
                               </div>

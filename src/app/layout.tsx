@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
-import InboxNotifier from "@/components/InboxNotifier";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-display",
@@ -33,7 +32,6 @@ export default function RootLayout({
         <main className="ml-[272px] min-h-screen bg-cream">
           {children}
         </main>
-        <InboxNotifier />
       </body>
     </html>
   );

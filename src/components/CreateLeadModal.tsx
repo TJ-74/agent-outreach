@@ -50,7 +50,11 @@ export default function CreateLeadModal({ open, onClose }: Props) {
       setErrors(errs);
       return;
     }
-    await addLead(form);
+    const result = await addLead(form);
+    if (result?.duplicate) {
+      setErrors({ email: "A lead with this email already exists" });
+      return;
+    }
     setForm(empty);
     setErrors({});
     onClose();

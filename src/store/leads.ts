@@ -121,44 +121,81 @@ interface LeadState {
   searchQuery: string;
   filterStatus: ActionNeeded | "all";
   loading: boolean;
+  page: number;
+  pageSize: number;
+  totalCount: number;
   fetchLeads: () => Promise<void>;
-  addLead: (lead: LeadInput) => Promise<void>;
-  addLeadsBulk: (leads: LeadInput[]) => Promise<{ inserted: number; skipped: number; leadIds: string[] }>;
+  addLead: (lead: LeadInput) => Promise<{ success: boolean; duplicate?: boolean }>;
+  addLeadsBulk: (leads: LeadInput[]) => Promise<{ inserted: number; skipped: number; duplicates: number; leadIds: string[] }>;
   updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
   setSearch: (query: string) => void;
   setFilter: (status: ActionNeeded | "all") => void;
+  setPage: (page: number) => void;
 }
 
-export const useLeadStore = create<LeadState>((set) => ({
+export const useLeadStore = create<LeadState>((set, get) => ({
   leads: [],
   searchQuery: "",
   filterStatus: "all",
   loading: false,
+  page: 1,
+  pageSize: 25,
+  totalCount: 0,
 
   fetchLeads: async () => {
     const uid = getUserId();
     if (!uid) {
-      set({ leads: [], loading: false });
+      set({ leads: [], loading: false, totalCount: 0 });
       return;
     }
 
+    const { page, pageSize, searchQuery, filterStatus } = get();
     set({ loading: true });
-    const { data, error } = await supabase
+
+    let query = supabase
       .from("leads")
-      .select("*")
-      .eq("user_id", uid)
-      .order("created_at", { ascending: false });
+      .select("*", { count: "exact" })
+      .eq("user_id", uid);
+
+    if (filterStatus !== "all") {
+      query = query.eq("action_needed", filterStatus);
+    }
+
+    if (searchQuery.trim()) {
+      const q = `%${searchQuery.trim()}%`;
+      query = query.or(
+        `first_name.ilike.${q},last_name.ilike.${q},email.ilike.${q},company.ilike.${q}`
+      );
+    }
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error, count } = await query
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (!error && data) {
-      set({ leads: (data as DbRow[]).map(rowToLead) });
+      set({ leads: (data as DbRow[]).map(rowToLead), totalCount: count ?? 0 });
     }
     set({ loading: false });
   },
 
   addLead: async (lead) => {
     const uid = getUserId();
-    if (!uid) return;
+    if (!uid) return { success: false };
+
+    const { data: existing } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("user_id", uid)
+      .ilike("email", lead.email.trim())
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return { success: false, duplicate: true };
+    }
 
     const { data, error } = await supabase
       .from("leads")
@@ -180,15 +217,36 @@ export const useLeadStore = create<LeadState>((set) => ({
     if (!error && data) {
       set((state) => ({
         leads: [rowToLead(data as DbRow), ...state.leads],
+        totalCount: state.totalCount + 1,
       }));
+      return { success: true };
     }
+    return { success: false };
   },
 
   addLeadsBulk: async (leads) => {
     const uid = getUserId();
-    if (!uid || leads.length === 0) return { inserted: 0, skipped: leads.length, leadIds: [] };
+    if (!uid || leads.length === 0) return { inserted: 0, skipped: leads.length, duplicates: 0, leadIds: [] };
 
-    const rows = leads.map((lead) => ({
+    const emails = leads.map((l) => l.email.trim().toLowerCase());
+    const { data: existingRows } = await supabase
+      .from("leads")
+      .select("email")
+      .eq("user_id", uid)
+      .in("email", emails);
+
+    const existingEmails = new Set(
+      (existingRows ?? []).map((r: { email: string }) => r.email.trim().toLowerCase())
+    );
+
+    const newLeads = leads.filter((l) => !existingEmails.has(l.email.trim().toLowerCase()));
+    const duplicates = leads.length - newLeads.length;
+
+    if (newLeads.length === 0) {
+      return { inserted: 0, skipped: 0, duplicates, leadIds: [] };
+    }
+
+    const rows = newLeads.map((lead) => ({
       user_id: uid,
       first_name: lead.firstName,
       last_name: lead.lastName,
@@ -207,17 +265,19 @@ export const useLeadStore = create<LeadState>((set) => ({
       .select();
 
     if (error || !data) {
-      return { inserted: 0, skipped: leads.length, leadIds: [] };
+      return { inserted: 0, skipped: newLeads.length, duplicates, leadIds: [] };
     }
 
     const insertedRows = (data as DbRow[]).map(rowToLead);
     set((state) => ({
       leads: [...insertedRows, ...state.leads],
+      totalCount: state.totalCount + insertedRows.length,
     }));
 
     return {
       inserted: insertedRows.length,
-      skipped: Math.max(0, leads.length - insertedRows.length),
+      skipped: Math.max(0, newLeads.length - insertedRows.length),
+      duplicates,
       leadIds: insertedRows.map((row) => row.id),
     };
   },
@@ -264,10 +324,12 @@ export const useLeadStore = create<LeadState>((set) => ({
     if (!error) {
       set((state) => ({
         leads: state.leads.filter((l) => l.id !== id),
+        totalCount: Math.max(0, state.totalCount - 1),
       }));
     }
   },
 
-  setSearch: (query) => set({ searchQuery: query }),
-  setFilter: (status) => set({ filterStatus: status }),
+  setSearch: (query) => set({ searchQuery: query, page: 1 }),
+  setFilter: (status) => set({ filterStatus: status, page: 1 }),
+  setPage: (page) => set({ page }),
 }));

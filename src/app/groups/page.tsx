@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, FolderOpen, Trash2, Pencil, Users } from "lucide-react";
+import { Plus, FolderOpen, Trash2, Pencil, Users, Loader2 } from "lucide-react";
 import { useGroupStore, type Group } from "@/store/groups";
 import GroupDetailPanel from "@/components/GroupDetailPanel";
 
@@ -33,6 +33,15 @@ export default function GroupsPage() {
     setIsNew(false);
     fetchGroups();
   };
+
+  if (loading && groups.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-copper" />
+        <p className="text-[13px] text-ink-mid">Loading groups…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1080px] px-10 py-12">

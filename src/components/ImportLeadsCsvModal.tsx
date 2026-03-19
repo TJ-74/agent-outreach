@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { X, Upload, FileSpreadsheet, AlertCircle, Loader2 } from "lucide-react";
 import { useLeadStore, type LeadInput } from "@/store/leads";
+import CustomSelect from "@/components/CustomSelect";
 
 type LeadField =
   | "firstName"
@@ -150,6 +151,7 @@ export default function ImportLeadsCsvModal({
   const [parsing, setParsing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [importResult, setImportResult] = useState<{ inserted: number; duplicates: number } | null>(null);
 
   const fieldOrder: LeadField[] = [
     "email",
@@ -229,6 +231,7 @@ export default function ImportLeadsCsvModal({
     setParsing(false);
     setBusy(false);
     setError("");
+    setImportResult(null);
   };
 
   const close = () => {
@@ -270,16 +273,25 @@ export default function ImportLeadsCsvModal({
 
     setBusy(true);
     setError("");
+    setImportResult(null);
     try {
       const res = await addLeadsBulk(parsedLeads.valid);
       if (onImportedLeadIds && res.leadIds.length > 0) {
         await onImportedLeadIds(res.leadIds);
       }
       if (res.inserted > 0) {
-        close();
+        if (res.duplicates > 0) {
+          setImportResult({ inserted: res.inserted, duplicates: res.duplicates });
+        } else {
+          close();
+        }
         return;
       }
-      setError("No leads were imported. Please check your CSV and try again.");
+      if (res.duplicates > 0) {
+        setError(`All ${res.duplicates} lead${res.duplicates !== 1 ? "s" : ""} already exist. No new leads were imported.`);
+      } else {
+        setError("No leads were imported. Please check your CSV and try again.");
+      }
     } catch {
       setError("Import failed. Please try again.");
     } finally {
@@ -340,18 +352,15 @@ export default function ImportLeadsCsvModal({
                     {FIELD_LABELS[field]}
                     {field === "email" && <span className="ml-1 text-rose">*</span>}
                   </label>
-                  <select
+                  <CustomSelect
                     value={map[field]}
-                    onChange={(e) => setMap((m) => ({ ...m, [field]: e.target.value }))}
-                    className="w-full rounded-[10px] border border-edge bg-surface px-3 py-[9px] text-[13px] text-ink outline-none focus:border-copper focus:ring-[3px] focus:ring-copper-light"
-                  >
-                    <option value="">Not mapped</option>
-                    {headers.map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setMap((m) => ({ ...m, [field]: val }))}
+                    placeholder="Not mapped"
+                    options={[
+                      { value: "", label: "Not mapped" },
+                      ...headers.map((h) => ({ value: h, label: h })),
+                    ]}
+                  />
                 </div>
               ))}
             </div>
@@ -362,6 +371,13 @@ export default function ImportLeadsCsvModal({
           </>
         )}
 
+        {importResult && (
+          <div className="mt-4 rounded-[10px] border border-sage/30 bg-sage-light/40 px-4 py-3 text-[12px] text-ink-mid">
+            <span className="font-semibold text-sage">{importResult.inserted} lead{importResult.inserted !== 1 ? "s" : ""} imported.</span>
+            {" "}{importResult.duplicates} duplicate{importResult.duplicates !== 1 ? "s" : ""} skipped (already exist).
+            <button onClick={close} className="ml-3 cursor-pointer font-semibold text-copper hover:underline">Done</button>
+          </div>
+        )}
         {error && (
           <p className="mt-4 inline-flex items-center gap-2 text-[12px] text-rose">
             <AlertCircle className="h-3.5 w-3.5" />
