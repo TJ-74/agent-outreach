@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -64,12 +65,17 @@ function looksLikeHtml(content: string): boolean {
   return /<[a-zA-Z][\s\S]*?>/m.test(content.trim());
 }
 
-const IFRAME_FONT_STYLE = `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:#2C2925}</style>`;
+function iframeStyle(dark: boolean) {
+  const color = dark ? "#EDE9E4" : "#2C2925";
+  const bg = dark ? "#1F272E" : "#ffffff";
+  return `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:${color};background:${bg}}</style>`;
+}
 
 function HtmlPreview({ html, className }: { html: string; className?: string }) {
+  const { theme } = useTheme();
   return (
     <iframe
-      srcDoc={IFRAME_FONT_STYLE + html}
+      srcDoc={iframeStyle(theme === "dark") + html}
       sandbox="allow-same-origin"
       className={className}
       style={{ border: "none", width: "100%", display: "block" }}
@@ -311,7 +317,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
       <div className="relative z-10 flex h-full w-[75vw] min-w-[540px] flex-col bg-surface shadow-lg animate-slide-in">
         {/* Header */}
@@ -817,7 +823,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                                 )}
                                 {stepBody && (
                                   stepBodyIsHtml ? (
-                                    <div className="mt-2 overflow-hidden rounded-[6px] border border-edge bg-white">
+                                    <div className="mt-2 overflow-hidden rounded-[6px] border border-edge bg-surface">
                                       <HtmlPreview html={renderPreview(stepBody)} />
                                     </div>
                                   ) : (
@@ -839,7 +845,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                               </button>
                               <button
                                 onClick={handleSaveStep}
-                                className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-ink px-3.5 py-[5px] text-[12px] font-semibold text-white transition-all hover:bg-ink/90"
+                                className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-charcoal px-3.5 py-[5px] text-[12px] font-semibold text-white transition-all hover:bg-charcoal-light"
                               >
                                 Save Step
                               </button>
@@ -934,7 +940,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                                 )}
                                 {step.bodyTemplate && (
                                   looksLikeHtml(step.bodyTemplate) ? (
-                                    <div className="mt-2 overflow-hidden rounded-[6px] border border-edge bg-white">
+                                    <div className="mt-2 overflow-hidden rounded-[6px] border border-edge bg-surface">
                                       <HtmlPreview html={renderPreview(step.bodyTemplate)} />
                                     </div>
                                   ) : (

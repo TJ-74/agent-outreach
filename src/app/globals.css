@@ -1,9 +1,16 @@
 @import "tailwindcss";
 
+/* Fonts must use @theme inline so the Next.js font-loader var() references
+   are preserved verbatim in the generated utilities. */
 @theme inline {
   --font-display: var(--font-display);
   --font-body: var(--font-body);
+}
 
+/* Colors and shadows use @theme (no inline) so Tailwind generates utilities
+   that reference CSS variables — e.g. bg-cream → background-color: var(--color-cream).
+   This allows the .dark overrides below to take effect at runtime. */
+@theme {
   /* Warm Canvas */
   --color-cream: #F7F5F2;
   --color-cream-deep: #EFECE7;
@@ -47,6 +54,39 @@
   --shadow-md: 0 4px 16px rgba(44,41,37,0.07), 0 1px 4px rgba(44,41,37,0.03);
   --shadow-lg: 0 12px 40px rgba(44,41,37,0.1), 0 2px 8px rgba(44,41,37,0.04);
   --shadow-copper: 0 4px 14px rgba(194,105,14,0.18);
+}
+
+/* ── Dark mode overrides ──────────────────────────────────────────────────── */
+/* Applied when <html class="dark"> is set by ThemeProvider.                   */
+/* These override the CSS variables that @theme registered on :root,           */
+/* so every Tailwind utility that uses var(--color-*) picks up the dark value. */
+.dark {
+  --color-cream: #141A1F;
+  --color-cream-deep: #1B2228;
+  --color-surface: #1F272E;
+
+  --color-copper-light: #2D1E0A;
+  --color-copper-muted: #3A2510;
+
+  --color-sage-light: #0D1E1A;
+  --color-sage-muted: #18302A;
+
+  --color-rose-light: #2D0F0F;
+  --color-amber-light: #2A1E08;
+
+  --color-ink: #EDE9E4;
+  --color-ink-mid: #9B9690;
+  --color-ink-light: #6B6660;
+  --color-ink-faint: #3D3830;
+
+  --color-edge: #2A3240;
+  --color-edge-strong: #364050;
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.25);
+  --shadow-copper: 0 4px 14px rgba(194,105,14,0.25);
 }
 
 * {

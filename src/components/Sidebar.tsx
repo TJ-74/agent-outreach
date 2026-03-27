@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Users, Settings, Zap, GitBranch, FolderOpen, CheckCircle, Brain, Inbox } from "lucide-react";
 import clsx from "clsx";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -68,8 +69,9 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 pb-6">
-        <div className="rounded-[10px] bg-cream px-4 py-3">
+        <div className="flex items-center justify-between rounded-[10px] bg-cream px-4 py-3">
           <p className="text-[11px] font-medium text-ink-light">v0.1.0</p>
+          <ThemeToggle />
         </div>
       </div>
     </aside>

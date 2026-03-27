@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
+import AppShell from "@/components/AppShell";
+import ThemeProvider from "@/components/ThemeProvider";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-display",
@@ -26,12 +27,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      {/* Inline script prevents flash of unstyled content on theme load */}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.classList.toggle('dark',t==='dark')}catch(e){}`,
+          }}
+        />
+      </head>
       <body suppressHydrationWarning className={`${jakarta.variable} ${inter.variable} antialiased`}>
-        <Sidebar />
-        <main className="ml-[272px] min-h-screen bg-cream">
-          {children}
-        </main>
+        <ThemeProvider>
+          <AppShell>
+            {children}
+          </AppShell>
+        </ThemeProvider>
       </body>
     </html>
   );

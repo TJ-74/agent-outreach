@@ -510,7 +510,7 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
       <div className="relative z-10 flex h-full w-full max-w-[760px] flex-col bg-surface shadow-lg animate-slide-in">
         {/* Header */}
@@ -909,7 +909,7 @@ function DraftInlineCard({
             />
             <div className="flex items-center justify-end gap-2">
               <button onClick={handleCancel} className="cursor-pointer rounded-[8px] px-3 py-[5px] text-[12px] font-medium text-ink-mid hover:bg-cream">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-ink px-3.5 py-[5px] text-[12px] font-semibold text-white transition-all hover:bg-ink/90 disabled:opacity-50">
+              <button onClick={handleSave} disabled={saving} className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-charcoal px-3.5 py-[5px] text-[12px] font-semibold text-white transition-all hover:bg-charcoal-light disabled:opacity-50">
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                 Save
               </button>

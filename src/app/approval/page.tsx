@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 import Link from "next/link";
 import {
   Loader2,
@@ -65,6 +66,7 @@ function timeAgo(iso: string) {
 }
 
 export default function ApprovalPage() {
+  const { theme } = useTheme();
   const [tab, setTab] = useState<Tab>("pending");
   const [pending, setPending] = useState<PendingSequence[]>([]);
   const [approved, setApproved] = useState<{ sequenceId: string; name: string; approvedCount: number; isCompleted: boolean }[]>([]);
@@ -352,7 +354,7 @@ export default function ApprovalPage() {
       {/* Modal: view sent email */}
       {selectedEmail && (
         <>
-          <div className="fixed inset-0 z-50 bg-ink/20 backdrop-blur-[2px]" onClick={() => setSelectedEmail(null)} />
+          <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[2px]" onClick={() => setSelectedEmail(null)} />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-[16px] border border-edge bg-surface shadow-xl overflow-hidden max-h-[85vh] flex flex-col animate-fade-up">
             {/* Modal header */}
             <div className="flex items-start justify-between border-b border-edge px-6 py-5">
@@ -403,9 +405,9 @@ export default function ApprovalPage() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light mb-2">Body</p>
                 {selectedEmail.is_html ? (
                   <iframe
-                    srcDoc={`<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:12px;font-size:13px;line-height:1.7;color:#2C2925}</style>` + selectedEmail.body}
+                    srcDoc={`<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:12px;font-size:13px;line-height:1.7;color:${theme === "dark" ? "#EDE9E4" : "#2C2925"};background:${theme === "dark" ? "#1F272E" : "#ffffff"}}</style>` + selectedEmail.body}
                     sandbox="allow-same-origin"
-                    className="w-full rounded-[10px] border border-edge bg-white"
+                    className="w-full rounded-[10px] border border-edge bg-surface"
                     style={{ border: "1px solid var(--color-edge)", minHeight: 200 }}
                     onLoad={(e) => {
                       const iframe = e.currentTarget;

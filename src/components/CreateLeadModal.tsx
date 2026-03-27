@@ -63,7 +63,7 @@ export default function CreateLeadModal({ open, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-ink/10 backdrop-blur-[3px]"
+        className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
         onClick={onClose}
       />
 

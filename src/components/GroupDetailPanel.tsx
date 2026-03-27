@@ -115,7 +115,7 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-ink/10 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
       <div className="relative z-10 flex h-full w-full max-w-[640px] flex-col bg-surface shadow-lg animate-slide-in">
         {/* Header */}

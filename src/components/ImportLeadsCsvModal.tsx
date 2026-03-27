@@ -301,7 +301,7 @@ export default function ImportLeadsCsvModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-ink/10 backdrop-blur-[3px]" onClick={close} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[3px]" onClick={close} />
       <div className="animate-scale-up relative z-10 w-full max-w-[760px] rounded-[20px] border border-edge bg-surface p-7 shadow-lg">
         <div className="mb-5 flex items-start justify-between">
           <div>

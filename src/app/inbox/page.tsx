@@ -22,6 +22,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
+import { useTheme } from "@/components/ThemeProvider";
 
 interface LeadProfile {
   jobTitle: string;
@@ -311,6 +312,7 @@ export default function InboxPage() {
     setFilterDate("all");
   };
 
+  const { theme } = useTheme();
   const selected = selectedId ? emails.find((e) => e.id === selectedId) ?? null : null;
 
   const selectEmail = (id: string) => {
@@ -669,9 +671,12 @@ export default function InboxPage() {
                       <div className="px-5 py-4 min-h-[180px]">
                         {selected.is_html ? (
                           <iframe
-                            srcDoc={`<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:#2C2925}</style>` + selected.body}
+                            srcDoc={
+                              `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:${theme === "dark" ? "#EDE9E4" : "#2C2925"};background:${theme === "dark" ? "#1F272E" : "#ffffff"}}</style>` +
+                              selected.body
+                            }
                             sandbox="allow-same-origin"
-                            className="w-full bg-white rounded-[8px]"
+                            className="w-full rounded-[8px] bg-surface"
                             style={{ border: "none", minHeight: 200 }}
                             onLoad={(e) => {
                               const iframe = e.currentTarget;

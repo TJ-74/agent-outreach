@@ -9,24 +9,24 @@ const variants: Record<
 > = {
   needs_reply: {
     label: "Needs Reply",
-    bg: "bg-orange-50",
-    text: "text-orange-600",
-    ring: "ring-orange-200",
-    dot: "bg-orange-500",
+    bg: "bg-amber-light",
+    text: "text-amber",
+    ring: "ring-amber/30",
+    dot: "bg-amber",
   },
   waiting_for_reply: {
     label: "Waiting",
-    bg: "bg-slate-50",
-    text: "text-slate-500",
-    ring: "ring-slate-200",
-    dot: "bg-slate-400",
+    bg: "bg-cream-deep",
+    text: "text-ink-mid",
+    ring: "ring-edge",
+    dot: "bg-ink-light",
   },
   needs_human: {
     label: "Needs Human",
-    bg: "bg-violet-50",
-    text: "text-violet-600",
-    ring: "ring-violet-200",
-    dot: "bg-violet-500",
+    bg: "bg-copper-light",
+    text: "text-copper",
+    ring: "ring-copper/30",
+    dot: "bg-copper",
   },
 };
 

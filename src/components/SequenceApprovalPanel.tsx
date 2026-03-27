@@ -28,6 +28,7 @@ import type { LeadPreview } from "@/app/api/sequences/preview-step/route";
 import { extractDomain, clusterByDomain } from "@/lib/domain";
 import { supabase } from "@/lib/supabase";
 import dynamic from "next/dynamic";
+import { useTheme } from "@/components/ThemeProvider";
 
 const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
   ssr: false,
@@ -54,14 +55,19 @@ function normalizeLinkedInUrl(url: string): string {
   return `https://${t.replace(/^\/+/, "")}`;
 }
 
-const IFRAME_FONT_STYLE = `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:#2C2925}</style>`;
+function iframeStyle(dark: boolean) {
+  const color = dark ? "#EDE9E4" : "#2C2925";
+  const bg = dark ? "#1F272E" : "#ffffff";
+  return `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:${color};background:${bg}}</style>`;
+}
 
 function HtmlPreview({ html }: { html: string }) {
+  const { theme } = useTheme();
   return (
     <iframe
-      srcDoc={IFRAME_FONT_STYLE + html}
+      srcDoc={iframeStyle(theme === "dark") + html}
       sandbox="allow-same-origin"
-      className="w-full bg-white"
+      className="w-full bg-surface"
       style={{ border: "none", minHeight: 220 }}
       onLoad={(e) => {
         const iframe = e.currentTarget;
@@ -75,7 +81,7 @@ function HtmlPreview({ html }: { html: string }) {
 }
 
 function SkeletonLine({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-[6px] bg-ink/[0.06] ${className}`} />;
+  return <div className={`animate-pulse rounded-[6px] bg-cream-deep ${className}`} />;
 }
 
 function EmailSkeleton({ hasResearch = false }: { hasResearch?: boolean }) {
@@ -1474,7 +1480,7 @@ export default function SequenceApprovalPanel({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       {panel}
     </div>
   );

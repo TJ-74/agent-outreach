@@ -131,7 +131,7 @@ export default function LeadsPage() {
               disabled={generatingReplies}
               className={clsx(
                 "inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-edge px-4 py-[10px] text-[13px] font-semibold shadow-xs transition-all disabled:opacity-50",
-                "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300"
+                "bg-amber-light text-amber border-amber/30 hover:border-amber/50"
               )}
             >
               <MessageSquare className="h-4 w-4" strokeWidth={2.5} />
@@ -238,7 +238,7 @@ export default function LeadsPage() {
                         {lead.firstName} {lead.lastName}
                       </p>
                       {(draftCountByLead[lead.id] ?? 0) > 0 && (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 border border-blue-200">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sage-light px-2 py-0.5 text-[10px] font-semibold text-sage border border-sage-muted">
                           <FileText className="h-3 w-3" />
                           {draftCountByLead[lead.id] === 1 ? "Draft" : `${draftCountByLead[lead.id]} Drafts`}
                         </span>
