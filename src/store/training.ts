@@ -43,6 +43,7 @@ export interface TrainingConfig {
   dos: string[];
   donts: string[];
   exampleEmails: ExampleEmail[];
+  followUpExample: { subject: string; body: string } | null;
   senderName: string;
   senderTitle: string;
   companyName: string;
@@ -62,6 +63,7 @@ interface TrainingRow {
   dos: string[];
   donts: string[];
   example_emails: ExampleEmail[];
+  follow_up_example: { subject: string; body: string } | null;
   sender_name: string;
   sender_title: string;
   company_name: string;
@@ -82,6 +84,7 @@ function rowToConfig(row: TrainingRow): TrainingConfig {
     dos: row.dos ?? [],
     donts: row.donts ?? [],
     exampleEmails: row.example_emails ?? [],
+    followUpExample: row.follow_up_example ?? null,
     senderName: row.sender_name ?? "",
     senderTitle: row.sender_title ?? "",
     companyName: row.company_name ?? "",
@@ -110,6 +113,7 @@ export type ConfigUpdates = Partial<
     | "dos"
     | "donts"
     | "exampleEmails"
+    | "followUpExample"
     | "senderName"
     | "senderTitle"
     | "companyName"
@@ -201,6 +205,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
     if (updates.dos !== undefined) dbUpdates.dos = updates.dos;
     if (updates.donts !== undefined) dbUpdates.donts = updates.donts;
     if (updates.exampleEmails !== undefined) dbUpdates.example_emails = updates.exampleEmails;
+    if (updates.followUpExample !== undefined) dbUpdates.follow_up_example = updates.followUpExample;
     if (updates.senderName !== undefined) dbUpdates.sender_name = updates.senderName;
     if (updates.senderTitle !== undefined) dbUpdates.sender_title = updates.senderTitle;
     if (updates.companyName !== undefined) dbUpdates.company_name = updates.companyName;
@@ -253,6 +258,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
         dos: original.dos,
         donts: original.donts,
         example_emails: original.exampleEmails,
+        follow_up_example: original.followUpExample,
         sender_name: original.senderName,
         sender_title: original.senderTitle,
         company_name: original.companyName,

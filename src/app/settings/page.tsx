@@ -104,7 +104,7 @@ function SettingsContent() {
     if (!userId || !editName.trim()) return;
     setSaving(true);
     await supabase.from("users").update({ name: editName.trim() }).eq("id", userId);
-    setProfile((p) => p ? { ...p, name: editName.trim() } : p);
+    setProfile((p) => (p ? { ...p, name: editName.trim() } : p));
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);

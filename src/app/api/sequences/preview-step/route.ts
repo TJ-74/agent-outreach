@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { substituteTemplate, dbLeadToVars } from "@/lib/sequence";
+import {
+  applyUserSignatureToGeneratedBody,
+  substituteTemplate,
+  dbLeadToVars,
+} from "@/lib/sequence";
 
 export interface LeadPreview {
   enrollmentId: string;
@@ -19,6 +23,7 @@ export interface LeadPreview {
 interface EnrollmentRow {
   id: string;
   lead_id: string;
+  user_id: string;
   current_step: number;
   status: string;
   generated_subject: string | null;
@@ -52,7 +57,9 @@ export async function POST(req: NextRequest) {
       .order("step_order", { ascending: true }),
     supabase
       .from("sequence_enrollments")
-      .select("id, lead_id, current_step, status, generated_subject, generated_body, is_html, generated_at")
+      .select(
+        "id, lead_id, user_id, current_step, status, generated_subject, generated_body, is_html, generated_at",
+      )
       .eq("sequence_id", sequenceId)
       .in("lead_id", leadIds)
       .eq("current_step", 1)
@@ -73,6 +80,28 @@ export async function POST(req: NextRequest) {
   const previews: LeadPreview[] = [];
   const skipped: string[] = [];
   const toUpsert: { id: string; generated_subject: string; generated_body: string; is_html: boolean; generated_at: string }[] = [];
+
+  const ownerIds = [...new Set(enrollments.map((e) => e.user_id).filter(Boolean))];
+  const signatureUsers =
+    ownerIds.length === 0
+      ? []
+      : (
+          await supabase
+            .from("users")
+            .select("id, email_signature, email_signature_enabled")
+            .in("id", ownerIds)
+        ).data ?? [];
+
+  const sigByUser = new Map<
+    string,
+    { html: string; enabled: boolean }
+  >();
+  for (const u of signatureUsers) {
+    sigByUser.set(u.id, {
+      html: u.email_signature ?? "",
+      enabled: u.email_signature_enabled !== false,
+    });
+  }
 
   for (const enrollment of enrollments) {
     const lead = leadMap.get(enrollment.lead_id);
@@ -116,6 +145,17 @@ export async function POST(req: NextRequest) {
       subject = substituteTemplate(step1.subject_template ?? "", vars);
       body = substituteTemplate(step1.body_template ?? "", vars);
       isHtml = /<[a-zA-Z][\s\S]*?>/m.test(body.trim());
+    }
+
+    if (body.trim().length > 0) {
+      const ownerSig = sigByUser.get(enrollment.user_id);
+      const withSig = applyUserSignatureToGeneratedBody(
+        body,
+        ownerSig?.html ?? "",
+        ownerSig?.enabled ?? true,
+      );
+      body = withSig.body;
+      isHtml = withSig.isHtml;
     }
 
     previews.push({

@@ -85,9 +85,31 @@ function addOutlookAttributes(html: string): string {
 
 /**
  * Prepares HTML for email delivery:
- * 1. Inlines <style> CSS into element style attributes (via juice)
- * 2. Adds legacy HTML attributes Outlook needs (bgcolor, align, width, etc.)
+ * 1. Inlines &lt;style&gt; CSS (juice). `webResources.links: false` keeps &lt;a href&gt; as real links
+ *    (otherwise web-resource-inliner can strip or replace them).
+ * 2. Ensures anchor tags have explicit href + inline styles for email clients.
+ * 3. Adds legacy HTML attributes Outlook needs (bgcolor, align, width, etc.).
  */
+function ensureEmailAnchors(html: string): string {
+  const $ = cheerio.load(html);
+  $("a[href]").each((_, el) => {
+    const href = ($(el).attr("href") ?? "").trim();
+    if (!href) {
+      $(el).replaceWith($(el).contents());
+      return;
+    }
+    $(el).attr("href", href);
+    if (!$(el).attr("style")?.includes("text-decoration")) {
+      const existing = $(el).attr("style") ?? "";
+      $(el).attr(
+        "style",
+        `${existing ? `${existing}; ` : ""}color: #0563C1; text-decoration: underline;`,
+      );
+    }
+  });
+  return $.html();
+}
+
 export function inlineEmailHtml(html: string): string {
   if (!/<[a-zA-Z][\s\S]*?>/m.test(html.trim())) return html;
   try {
@@ -95,8 +117,12 @@ export function inlineEmailHtml(html: string): string {
       removeStyleTags: true,
       preserveMediaQueries: true,
       preserveFontFaces: true,
+      webResources: {
+        links: false,
+        images: true,
+      },
     });
-    return addOutlookAttributes(inlined);
+    return addOutlookAttributes(ensureEmailAnchors(inlined));
   } catch {
     return html;
   }
@@ -116,4 +142,103 @@ export function dbLeadToVars(row: {
     company: row.company ?? "",
     jobTitle: row.job_title ?? "",
   };
+}
+
+/** Detects HTML tags in a message body (matches preview-step / templates) */
+export function bodyLooksLikeHtml(body: string): boolean {
+  return /<[a-zA-Z][\s\S]*?>/m.test((body ?? "").trim());
+}
+
+/** True when TipTap / HTML editor content has no visible text */
+export function isEmptyRichHtml(html: string): boolean {
+  const text = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+  return text.length === 0;
+}
+
+/** Converts a plain-text body into minimal HTML paragraphs, preserving line breaks. */
+function plainTextToHtml(text: string): string {
+  return text
+    .trim()
+    .split(/\n{2,}/)
+    .filter((para) => para.trim().length > 0)
+    .map((para) => `<p>${para.replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+}
+
+/**
+ * Remove trailing empty block elements (<p>, <div>, <br>) from HTML so the
+ * signature sits immediately after the last real line of content.
+ */
+function trimTrailingHtml(html: string): string {
+  // Repeatedly strip a trailing empty block until nothing more can be removed
+  let prev = "";
+  let result = html.trimEnd();
+  while (result !== prev) {
+    prev = result;
+    // empty <p> / <div> (may contain only whitespace, &nbsp;, or <br> tags)
+    result = result
+      .replace(/<(p|div)[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/\1>\s*$/i, "")
+      .replace(/(<br\s*\/?>\s*){2,}$/i, "")
+      .trimEnd();
+  }
+  return result;
+}
+
+export function appendEmailSignature(
+  body: string,
+  signature: string | null | undefined,
+  isHtml: boolean,
+): string {
+  const sig = (signature ?? "").trim();
+  if (!sig) return body;
+  if (isHtml) {
+    const cleanBody = trimTrailingHtml(body);
+    const sigHtml = bodyLooksLikeHtml(sig) ? sig : sig.split("\n").join("<br/>");
+    return `${cleanBody}<br/>${sigHtml}`;
+  }
+  // Plain-text path: only safe if the signature itself is also plain text
+  if (!bodyLooksLikeHtml(sig)) {
+    return `${body.replace(/\s+$/, "")}\n\n${sig}`;
+  }
+  // Signature has HTML (e.g. links) but body is plain — upgrade body to HTML
+  const htmlBody = plainTextToHtml(body);
+  return `${htmlBody}<br/>${sig}`;
+}
+
+/**
+ * Merge saved signature into a generated body.
+ * If the signature contains HTML (links, formatting) and the body is plain text,
+ * the body is automatically upgraded to HTML so links are preserved.
+ */
+export function applyUserSignatureToGeneratedBody(
+  body: string,
+  signatureHtml: string | null | undefined,
+  signatureEnabled: boolean,
+): { body: string; isHtml: boolean } {
+  if (!signatureEnabled || isEmptyRichHtml(signatureHtml ?? "")) {
+    return { body, isHtml: bodyLooksLikeHtml(body) };
+  }
+
+  const bodyIsHtml = bodyLooksLikeHtml(body);
+  const sigIsHtml = bodyLooksLikeHtml(signatureHtml ?? "");
+
+  // If neither is HTML, concatenate as plain text
+  if (!bodyIsHtml && !sigIsHtml) {
+    const merged = `${body.replace(/\s+$/, "")}\n\n${(signatureHtml ?? "").trim()}`;
+    return { body: merged, isHtml: false };
+  }
+
+  // One or both are HTML — ensure the body is HTML before merging
+  const htmlBody = bodyIsHtml ? body : plainTextToHtml(body);
+  const cleanBody = trimTrailingHtml(htmlBody);
+  const sigContent = bodyLooksLikeHtml(signatureHtml ?? "")
+    ? (signatureHtml ?? "").trim()
+    : (signatureHtml ?? "").trim().split("\n").join("<br/>");
+
+  const merged = `${cleanBody}<br/>${sigContent}`;
+  return { body: merged, isHtml: true };
 }

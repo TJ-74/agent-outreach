@@ -16,8 +16,8 @@ docker run -p 8000:8000 \
   -e SUPABASE_SERVICE_KEY=... \
   -e AZURE_OPENAI_API_KEY=... \
   -e AZURE_OPENAI_ENDPOINT=... \
-  -e AZURE_OPENAI_DEPLOYMENT=gpt-4o \
-  -e AZURE_OPENAI_MINI_DEPLOYMENT=gpt-5-mini \
+  -e AZURE_OPENAI_DEPLOYMENT=gpt-5.3-chat \
+  -e AZURE_OPENAI_MINI_DEPLOYMENT=gpt-5.3-chat \
   -e AZURE_OPENAI_API_VERSION=2024-12-01-preview \
   -e BRAVE_SEARCH_API_KEY=... \
   agent-outreach-backend

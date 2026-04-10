@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { getUserId } from "@/lib/outlook";
 import { getGoogleUserId } from "@/lib/google";
 import { researchLead } from "@/lib/brave-search";
+import { normalizeEmailLlmModel } from "@/lib/email-llm-models";
 
 async function summarizeResearch(
   client: AzureOpenAI,
@@ -34,8 +35,8 @@ async function summarizeResearch(
 
   const completion = await client.chat.completions.create({
     model,
-    temperature: 0.3,
-    max_tokens: 800,
+    temperature: 1,
+    max_completion_tokens: 800,
     messages: [
       { role: "system", content: prompt },
       { role: "user", content: rawResearch },
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { leadId, leadName, email, company } = await req.json();
+  const { leadId, leadName, email, company, model } = await req.json();
 
   if (!leadId || !email) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -72,19 +73,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ research: null });
     }
 
-    const miniDeployment = process.env.AZURE_OPENAI_DEPLOYMENT_MINI ?? process.env.AZURE_OPENAI_DEPLOYMENT ?? "gpt-4o";
+    const deployment = normalizeEmailLlmModel(model);
     const apiVersion = process.env.AZURE_OPENAI_API_VERSION ?? "2024-12-01-preview";
 
     const client = new AzureOpenAI({
       apiKey: azureKey,
       endpoint: azureEndpoint,
-      deployment: miniDeployment,
+      deployment,
       apiVersion,
     });
 
     const summary = await summarizeResearch(
       client,
-      miniDeployment,
+      deployment,
       rawResearch.combined,
       leadName ?? "Unknown",
       company || undefined,

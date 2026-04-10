@@ -20,6 +20,8 @@ import {
   X,
   GitBranch,
   ChevronDown,
+  Sparkles,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "@/components/ThemeProvider";
@@ -250,6 +252,15 @@ export default function InboxPage() {
   const [filterDate, setFilterDate] = useState<"all" | "today" | "week" | "month">("all");
   const [showFilters, setShowFilters] = useState(false);
 
+  // Follow-up compose state
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [followUpSubject, setFollowUpSubject] = useState("");
+  const [followUpBody, setFollowUpBody] = useState("");
+  const [followUpGenerating, setFollowUpGenerating] = useState(false);
+  const [followUpSending, setFollowUpSending] = useState(false);
+  const [followUpSent, setFollowUpSent] = useState(false);
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/sent-emails")
       .then((r) => r.json())
@@ -318,7 +329,74 @@ export default function InboxPage() {
   const selectEmail = (id: string) => {
     setSelectedId(id);
     setContentTab("email");
+    setFollowUpOpen(false);
+    setFollowUpSubject("");
+    setFollowUpBody("");
+    setFollowUpSent(false);
+    setFollowUpError(null);
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleGenerateFollowUp = async () => {
+    if (!selected) return;
+    setFollowUpGenerating(true);
+    setFollowUpError(null);
+    setFollowUpSent(false);
+    try {
+      const res = await fetch("/api/inbox/follow-up", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sequenceId: selected.sequence_id,
+          leadName: selected.lead_name,
+          leadEmail: selected.lead_email,
+          company: selected.company,
+          originalSubject: selected.subject,
+          originalBody: selected.body,
+          research: selected.lead_profile?.research || null,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setFollowUpError(d.error ?? "Generation failed");
+        return;
+      }
+      const { subject, body } = await res.json();
+      setFollowUpSubject(subject ?? "");
+      setFollowUpBody(body ?? "");
+    } catch {
+      setFollowUpError("Network error during generation");
+    } finally {
+      setFollowUpGenerating(false);
+    }
+  };
+
+  const handleSendFollowUp = async () => {
+    if (!selected || !followUpBody.trim()) return;
+    setFollowUpSending(true);
+    setFollowUpError(null);
+    try {
+      const res = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: selected.lead_email,
+          subject: followUpSubject || `Re: ${selected.subject}`,
+          body: followUpBody,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setFollowUpError(d.error ?? "Send failed");
+        return;
+      }
+      setFollowUpSent(true);
+      setFollowUpOpen(false);
+    } catch {
+      setFollowUpError("Network error during send");
+    } finally {
+      setFollowUpSending(false);
+    }
   };
 
   if (loading) {
@@ -609,6 +687,31 @@ export default function InboxPage() {
                         <Linkedin className="h-4 w-4" />
                       </a>
                     )}
+                    {followUpSent ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-[8px] bg-sage-light px-3 py-[6px] text-[12px] font-semibold text-sage">
+                        <Check className="h-3.5 w-3.5" />
+                        Follow-up sent
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (!followUpOpen) {
+                            setFollowUpOpen(true);
+                            if (!followUpBody) handleGenerateFollowUp();
+                          } else {
+                            setFollowUpOpen(false);
+                          }
+                        }}
+                        className={`cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] border px-3 py-[6px] text-[12px] font-semibold transition-all ${
+                          followUpOpen
+                            ? "border-copper/40 bg-copper-light text-copper"
+                            : "border-edge bg-surface text-ink-mid hover:border-copper/40 hover:bg-copper-light hover:text-copper"
+                        }`}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Follow Up
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -691,6 +794,105 @@ export default function InboxPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Follow-up compose panel */}
+                    {followUpOpen && (
+                      <div className="mt-5 rounded-[14px] border border-copper/30 bg-surface shadow-xs overflow-hidden animate-fade-up">
+                        <div className="flex items-center justify-between border-b border-edge px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-copper" />
+                            <p className="text-[13px] font-semibold text-ink">AI Follow-up</p>
+                            {followUpGenerating && (
+                              <span className="flex items-center gap-1.5 text-[11px] text-ink-light">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Generating…
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {!followUpGenerating && followUpBody && (
+                              <button
+                                onClick={handleGenerateFollowUp}
+                                title="Regenerate"
+                                className="cursor-pointer rounded-[7px] p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-ink"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setFollowUpOpen(false)}
+                              className="cursor-pointer rounded-[7px] p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-ink"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {followUpGenerating ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="flex flex-col items-center gap-3">
+                              <Loader2 className="h-6 w-6 animate-spin text-copper" />
+                              <p className="text-[12px] text-ink-mid">Crafting your follow-up…</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-5 space-y-3">
+                            {followUpError && (
+                              <p className="rounded-[8px] bg-rose-light/40 px-3 py-2 text-[12px] font-medium text-rose">
+                                {followUpError}
+                              </p>
+                            )}
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                                Subject
+                              </label>
+                              <input
+                                type="text"
+                                value={followUpSubject}
+                                onChange={(e) => setFollowUpSubject(e.target.value)}
+                                className="w-full rounded-[8px] border border-edge bg-cream px-3.5 py-[8px] text-[13px] text-ink outline-none transition-all focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
+                                Body
+                              </label>
+                              <textarea
+                                value={followUpBody}
+                                onChange={(e) => setFollowUpBody(e.target.value)}
+                                rows={6}
+                                className="w-full resize-y rounded-[8px] border border-edge bg-cream px-3.5 py-2.5 text-[13px] leading-[1.6] text-ink outline-none transition-all focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[11px] text-ink-light">
+                                To: {selected.lead_email}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setFollowUpOpen(false)}
+                                  className="cursor-pointer rounded-[8px] px-3 py-[6px] text-[12px] font-medium text-ink-mid hover:bg-cream"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleSendFollowUp}
+                                  disabled={followUpSending || !followUpBody.trim()}
+                                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-copper px-4 py-[7px] text-[12px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-50"
+                                >
+                                  {followUpSending ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Send className="h-3.5 w-3.5" />
+                                  )}
+                                  {followUpSending ? "Sending…" : "Send Follow-up"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Notes */}
                     {selected.lead_profile?.notes && (

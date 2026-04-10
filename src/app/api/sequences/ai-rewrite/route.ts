@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { getUserId } from "@/lib/outlook";
 import { getGoogleUserId } from "@/lib/google";
 import { researchLead } from "@/lib/brave-search";
+import { applyUserSignatureToGeneratedBody } from "@/lib/sequence";
+import { normalizeEmailLlmModel } from "@/lib/email-llm-models";
 
 interface TrainingRow {
   brand_voice: string;
@@ -84,8 +86,8 @@ async function summarizeResearch(
   try {
     const completion = await client.chat.completions.create({
       model,
-      temperature: 0.3,
-      max_tokens: 800,
+      temperature: 1,
+      max_completion_tokens: 800,
       messages: [
         { role: "system", content: prompt },
         { role: "user", content: rawResearch },
@@ -121,6 +123,7 @@ export async function POST(req: NextRequest) {
     currentSubject,
     currentBody,
     skipResearch,
+    model,
   } = await req.json();
 
   if (!sequenceId || !email) {
@@ -129,8 +132,7 @@ export async function POST(req: NextRequest) {
 
   const hasExisting = !!(currentSubject?.trim() || currentBody?.trim());
 
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT ?? "gpt-4o";
-  const miniDeployment = process.env.AZURE_OPENAI_DEPLOYMENT_MINI ?? deployment;
+  const deployment = normalizeEmailLlmModel(model);
   const apiVersion = process.env.AZURE_OPENAI_API_VERSION ?? "2024-12-01-preview";
 
   const client = new AzureOpenAI({
@@ -166,12 +168,12 @@ export async function POST(req: NextRequest) {
       const miniClient = new AzureOpenAI({
         apiKey: azureKey,
         endpoint: azureEndpoint,
-        deployment: miniDeployment,
+        deployment,
         apiVersion,
       });
       researchSummary = await summarizeResearch(
         miniClient,
-        miniDeployment,
+        deployment,
         rawResearch.combined,
         leadName ?? "Unknown",
         company || undefined,
@@ -225,8 +227,8 @@ export async function POST(req: NextRequest) {
   try {
     const completion = await client.chat.completions.create({
       model: deployment,
-      temperature: 0.7,
-      max_tokens: 1024,
+      temperature: 1,
+      max_completion_tokens: 1024,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -237,9 +239,27 @@ export async function POST(req: NextRequest) {
     const cleaned = raw.replace(/^```json?\n?/i, "").replace(/\n?```$/i, "").trim();
     const parsed = JSON.parse(cleaned);
 
+    let subject = parsed.subject ?? currentSubject ?? "";
+    let body = parsed.body ?? currentBody ?? "";
+
+    const { data: sigUser } = await supabase
+      .from("users")
+      .select("email_signature, email_signature_enabled")
+      .eq("id", userId)
+      .single();
+
+    if (body.trim().length > 0) {
+      const merged = applyUserSignatureToGeneratedBody(
+        body,
+        sigUser?.email_signature ?? "",
+        sigUser?.email_signature_enabled !== false,
+      );
+      body = merged.body;
+    }
+
     return NextResponse.json({
-      subject: parsed.subject ?? currentSubject ?? "",
-      body: parsed.body ?? currentBody ?? "",
+      subject,
+      body,
       research: researchSummary,
     });
   } catch (err: unknown) {

@@ -348,6 +348,9 @@ create index if not exists idx_ai_training_config_user_id on ai_training_config(
 alter table ai_training_config enable row level security;
 create policy "Allow all access on ai_training_config" on ai_training_config for all using (true) with check (true);
 
+-- Add follow-up example field to training config
+alter table ai_training_config add column if not exists follow_up_example jsonb default null;
+
 -- Link sequences to a training config
 alter table sequences add column if not exists training_config_id uuid references ai_training_config(id) on delete set null;
 
@@ -357,3 +360,7 @@ alter table sequence_enrollments
   add column if not exists generated_body text default '',
   add column if not exists is_html boolean default false,
   add column if not exists generated_at timestamptz;
+
+-- Email signature appended when sending from the approval queue (approvals UI)
+alter table users add column if not exists email_signature text default '';
+alter table users add column if not exists email_signature_enabled boolean default true;

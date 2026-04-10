@@ -151,7 +151,7 @@ def summarize_messages(lead_id: str, config: RunnableConfig) -> str:
         return "All messages already have summaries."
 
     prompt = build_message_summary_prompt(unsummarized)
-    result, _ = chat_json(MESSAGE_SUMMARY_SYSTEM, prompt, deployment=_get_settings().azure_openai_mini_deployment)
+    result, _ = chat_json(MESSAGE_SUMMARY_SYSTEM, prompt)
 
     summaries = result.get("summaries", [])
     count = 0

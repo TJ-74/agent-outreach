@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   Save,
@@ -16,6 +16,8 @@ import {
   CheckCircle,
   Trash2,
   Pencil,
+  Download,
+  RotateCcw,
 } from "lucide-react";
 import {
   useTrainingStore,
@@ -124,7 +126,7 @@ export default function TrainingEditorPanel({
   isNew,
   onClose,
 }: Props) {
-  const { createConfig, updateConfig, saving } = useTrainingStore();
+  const { createConfig, updateConfig, saving, configs } = useTrainingStore();
 
   const [tab, setTab] = useState<Tab>("voice");
   const [configId, setConfigId] = useState<string | null>(config?.id ?? null);
@@ -138,6 +140,10 @@ export default function TrainingEditorPanel({
   const [dos, setDos] = useState<string[]>(config?.dos ?? []);
   const [donts, setDonts] = useState<string[]>(config?.donts ?? []);
   const [exampleEmails, setExampleEmails] = useState<ExampleEmail[]>(config?.exampleEmails ?? []);
+  const [followUpExample, setFollowUpExample] = useState<{ subject: string; body: string } | null>(config?.followUpExample ?? null);
+  const [editingFollowUp, setEditingFollowUp] = useState(false);
+  const [fuSubject, setFuSubject] = useState("");
+  const [fuBody, setFuBody] = useState("");
   const [senderName, setSenderName] = useState(config?.senderName ?? "");
   const [senderTitle, setSenderTitle] = useState(config?.senderTitle ?? "");
   const [companyName, setCompanyName] = useState(config?.companyName ?? "");
@@ -166,11 +172,12 @@ export default function TrainingEditorPanel({
     dos,
     donts,
     exampleEmails,
+    followUpExample,
     senderName,
     senderTitle,
     companyName,
     companyDescription,
-  }), [name, description, brandVoice, tone, customInstructions, dos, donts, exampleEmails, senderName, senderTitle, companyName, companyDescription]);
+  }), [name, description, brandVoice, tone, customInstructions, dos, donts, exampleEmails, followUpExample, senderName, senderTitle, companyName, companyDescription]);
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -211,6 +218,38 @@ export default function TrainingEditorPanel({
     markDirty();
   };
   const removeExampleEmail = (i: number) => { setExampleEmails((prev) => prev.filter((_, idx) => idx !== i)); markDirty(); };
+
+  const [showImportDropdown, setShowImportDropdown] = useState(false);
+  const importDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close import dropdown on outside click
+  useEffect(() => {
+    if (!showImportDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (importDropdownRef.current && !importDropdownRef.current.contains(e.target as Node)) {
+        setShowImportDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showImportDropdown]);
+
+  const importRulesFrom = (source: TrainingConfig) => {
+    setDos((prev) => {
+      const existing = new Set(prev);
+      const toAdd = source.dos.filter((d) => !existing.has(d));
+      return toAdd.length ? [...prev, ...toAdd] : prev;
+    });
+    setDonts((prev) => {
+      const existing = new Set(prev);
+      const toAdd = source.donts.filter((d) => !existing.has(d));
+      return toAdd.length ? [...prev, ...toAdd] : prev;
+    });
+    markDirty();
+    setShowImportDropdown(false);
+  };
+
+  const importableProfiles = configs.filter((c) => c.id !== configId && (c.dos.length > 0 || c.donts.length > 0));
 
   const [editingExampleIdx, setEditingExampleIdx] = useState<number | null>(null);
   const [editExLabel, setEditExLabel] = useState("");
@@ -416,6 +455,42 @@ export default function TrainingEditorPanel({
           {/* Rules (Do's & Don'ts) */}
           {tab === "rules" && (
             <div className="space-y-6 animate-fade-up">
+              {/* Import from profile */}
+              <div className="relative" ref={importDropdownRef}>
+                <button
+                  onClick={() => setShowImportDropdown((v) => !v)}
+                  disabled={importableProfiles.length === 0}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-edge bg-cream px-3 py-[6px] text-[12px] font-semibold text-ink-mid transition-all hover:border-edge-strong hover:text-ink disabled:opacity-40 disabled:cursor-default"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Import from profile
+                </button>
+                {importableProfiles.length === 0 && (
+                  <span className="ml-2 text-[11px] text-ink-light">No other profiles with rules yet</span>
+                )}
+                {showImportDropdown && importableProfiles.length > 0 && (
+                  <div className="absolute left-0 top-full z-20 mt-1 w-64 rounded-[10px] border border-edge bg-surface shadow-lg animate-fade-up">
+                    <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-light border-b border-edge">
+                      Select a profile to import from
+                    </p>
+                    <div className="max-h-52 overflow-y-auto py-1">
+                      {importableProfiles.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => importRulesFrom(p)}
+                          className="flex w-full cursor-pointer flex-col gap-0.5 px-3 py-2 text-left transition-colors hover:bg-cream"
+                        >
+                          <span className="text-[13px] font-semibold text-ink truncate">{p.name}</span>
+                          <span className="text-[11px] text-ink-light">
+                            {p.dos.length} do&apos;s · {p.donts.length} don&apos;ts
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <div className="mb-3 flex items-center gap-2">
                   <ThumbsUp className="h-4 w-4 text-sage" />
@@ -566,6 +641,109 @@ export default function TrainingEditorPanel({
                   Add Example Email
                 </button>
               )}
+
+              {/* ── Follow-up Example ── */}
+              <div className="border-t border-edge pt-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <RotateCcw className="h-3.5 w-3.5 text-copper" />
+                  <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-mid">
+                    Follow-up Example
+                  </span>
+                  <span className="rounded-full bg-copper-light px-2 py-[1px] text-[9px] font-bold uppercase tracking-[0.06em] text-copper">
+                    Follow-ups only
+                  </span>
+                </div>
+                <p className="mb-3 text-[12px] text-ink-light">
+                  One example of a great follow-up email. Used exclusively when generating follow-ups — not for initial outreach.
+                </p>
+
+                {followUpExample && !editingFollowUp ? (
+                  <div className="group rounded-[10px] border border-copper/20 bg-copper-light/20 transition-colors hover:border-copper/40">
+                    <div className="flex items-center justify-between border-b border-copper/15 px-4 py-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <RotateCcw className="h-3 w-3 shrink-0 text-copper" />
+                        <span className="text-[12px] font-semibold text-ink truncate">Follow-up Example</span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => {
+                            setFuSubject(followUpExample.subject);
+                            setFuBody(followUpExample.body);
+                            setEditingFollowUp(true);
+                          }}
+                          className="cursor-pointer shrink-0 rounded-[6px] p-1 text-ink-light opacity-0 transition-all group-hover:opacity-100 hover:bg-cream-deep hover:text-ink"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => { setFollowUpExample(null); markDirty(); }}
+                          className="cursor-pointer shrink-0 rounded-[6px] p-1 text-ink-light opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-light hover:text-rose"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      {followUpExample.subject && (
+                        <p className="text-[12px] font-semibold text-ink">Subject: {followUpExample.subject}</p>
+                      )}
+                      <p className="mt-1 text-[12px] leading-[1.6] text-ink-mid whitespace-pre-wrap line-clamp-4">
+                        {followUpExample.body}
+                      </p>
+                    </div>
+                  </div>
+                ) : editingFollowUp || (!followUpExample) ? (
+                  editingFollowUp || fuSubject || fuBody ? (
+                    <div className="rounded-[10px] border border-copper/30 bg-surface p-4 space-y-3">
+                      <input
+                        type="text"
+                        value={fuSubject}
+                        onChange={(e) => setFuSubject(e.target.value)}
+                        placeholder="Subject line (e.g. Re: quick question)"
+                        className="w-full rounded-[8px] border border-edge bg-surface px-3.5 py-[8px] text-[13px] text-ink placeholder:text-ink-light outline-none transition-all focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                      />
+                      <textarea
+                        value={fuBody}
+                        onChange={(e) => setFuBody(e.target.value)}
+                        placeholder="Paste a great follow-up email you've written. The AI will use this as a style reference."
+                        rows={5}
+                        className="w-full resize-y rounded-[8px] border border-edge bg-surface px-3.5 py-2.5 text-[13px] leading-[1.6] text-ink placeholder:text-ink-light outline-none transition-all focus:border-copper focus:ring-[3px] focus:ring-copper-light"
+                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => { setEditingFollowUp(false); setFuSubject(""); setFuBody(""); }}
+                          className="cursor-pointer rounded-[8px] px-3 py-[6px] text-[12px] font-medium text-ink-mid hover:bg-cream"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!fuBody.trim()) return;
+                            setFollowUpExample({ subject: fuSubject.trim(), body: fuBody.trim() });
+                            setEditingFollowUp(false);
+                            setFuSubject("");
+                            setFuBody("");
+                            markDirty();
+                          }}
+                          disabled={!fuBody.trim()}
+                          className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-copper px-3.5 py-[6px] text-[12px] font-semibold text-white transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-40"
+                        >
+                          <Save className="h-3 w-3" />
+                          Save Example
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setEditingFollowUp(true)}
+                      className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-dashed border-copper/30 py-4 text-[13px] font-medium text-copper/70 transition-all hover:border-copper hover:bg-copper-light/30 hover:text-copper"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Follow-up Example
+                    </button>
+                  )
+                ) : null}
+              </div>
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-  import {
+import {
   X,
   Check,
   XCircle,
@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
   Mail,
   ChevronLeft,
   ChevronRight,
+  FileSignature,
   ArrowLeft,
   Send,
   User,
@@ -23,10 +24,21 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
   RefreshCw,
   BrainCircuit,
   Linkedin,
+  Save,
+  Cpu,
 } from "lucide-react";
 import type { LeadPreview } from "@/app/api/sequences/preview-step/route";
+import {
+  DEFAULT_EMAIL_LLM_MODEL,
+  EMAIL_LLM_MODELS,
+  isAllowedEmailLlmModel,
+  type EmailLlmModelId,
+} from "@/lib/email-llm-models";
 import { extractDomain, clusterByDomain } from "@/lib/domain";
+import { bodyLooksLikeHtml, isEmptyRichHtml } from "@/lib/sequence";
 import { supabase } from "@/lib/supabase";
+import { useOutlookStore } from "@/store/outlook";
+import { useGoogleStore } from "@/store/google";
 import dynamic from "next/dynamic";
 import { useTheme } from "@/components/ThemeProvider";
 
@@ -38,6 +50,8 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
     </div>
   ),
 });
+
+const EMAIL_LLM_STORAGE_KEY = "approval-email-llm-model";
 
 interface Props {
   sequenceId: string;
@@ -58,7 +72,13 @@ function normalizeLinkedInUrl(url: string): string {
 function iframeStyle(dark: boolean) {
   const color = dark ? "#EDE9E4" : "#2C2925";
   const bg = dark ? "#1F272E" : "#ffffff";
-  return `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:0;font-size:13px;line-height:1.7;color:${color};background:${bg}}</style>`;
+  const link = dark ? "#7CB9FF" : "#0563C1";
+  /* Do not use * { color } — it overrides <a> inline styles and hides links in signatures */
+  return `<style>
+body{margin:0;padding:12px;font-size:13px;line-height:1.7;color:${color};background:${bg};font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+a{color:${link}!important;text-decoration:underline!important}
+a:visited{color:${link}!important}
+</style>`;
 }
 
 function HtmlPreview({ html }: { html: string }) {
@@ -66,7 +86,8 @@ function HtmlPreview({ html }: { html: string }) {
   return (
     <iframe
       srcDoc={iframeStyle(theme === "dark") + html}
-      sandbox="allow-same-origin"
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      title="Email preview"
       className="w-full bg-surface"
       style={{ border: "none", minHeight: 220 }}
       onLoad={(e) => {
@@ -195,6 +216,87 @@ export default function SequenceApprovalPanel({
   const [leadResearch, setLeadResearch] = useState<Record<string, string>>({});
   const [researchingId, setResearchingId] = useState<string | null>(null);
   const [trainingProfileName, setTrainingProfileName] = useState<string | null>(null);
+  const [emailLlmModel, setEmailLlmModel] = useState<EmailLlmModelId>(DEFAULT_EMAIL_LLM_MODEL);
+  const [sigHtml, setSigHtml] = useState("");
+  const [sigEnabled, setSigEnabled] = useState(true);
+  const [savedSigHtml, setSavedSigHtml] = useState("");
+  const [savedSigEnabled, setSavedSigEnabled] = useState(true);
+  const [sigModalOpen, setSigModalOpen] = useState(false);
+  const [modelDropOpen, setModelDropOpen] = useState(false);
+  const modelDropRef = useRef<HTMLDivElement>(null);
+  const sigModalOpenRef = useRef(false);
+  sigModalOpenRef.current = sigModalOpen;
+  const [sigSaving, setSigSaving] = useState(false);
+  const [sigSavedFlash, setSigSavedFlash] = useState(false);
+  const [sigSaveError, setSigSaveError] = useState<string | null>(null);
+
+  const outlookUserId = useOutlookStore((s) => s.userId);
+  const googleUserId = useGoogleStore((s) => s.userId);
+  const checkOutlookConnection = useOutlookStore((s) => s.checkConnection);
+  const checkGoogleConnection = useGoogleStore((s) => s.checkConnection);
+  const userId = outlookUserId || googleUserId;
+
+  useEffect(() => {
+    checkOutlookConnection();
+    checkGoogleConnection();
+  }, [checkOutlookConnection, checkGoogleConnection]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("email_signature, email_signature_enabled")
+        .eq("id", userId)
+        .single();
+      if (error && !cancelled) {
+        console.error("Signature load failed:", error.message);
+      }
+      if (!cancelled && data) {
+        const html = data.email_signature ?? "";
+        const en = data.email_signature_enabled ?? true;
+        setSigHtml(html);
+        setSigEnabled(en);
+        setSavedSigHtml(html);
+        setSavedSigEnabled(en);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const sigDirty = useMemo(
+    () => sigHtml !== savedSigHtml || sigEnabled !== savedSigEnabled,
+    [sigHtml, sigEnabled, savedSigHtml, savedSigEnabled],
+  );
+
+  const saveSignature = useCallback(async (): Promise<boolean> => {
+    if (!userId) return false;
+    setSigSaveError(null);
+    setSigSaving(true);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          email_signature: sigHtml,
+          email_signature_enabled: sigEnabled,
+        })
+        .eq("id", userId);
+      if (error) {
+        setSigSaveError(error.message);
+        return false;
+      }
+      setSavedSigHtml(sigHtml);
+      setSavedSigEnabled(sigEnabled);
+      setSigSavedFlash(true);
+      setTimeout(() => setSigSavedFlash(false), 2000);
+      return true;
+    } finally {
+      setSigSaving(false);
+    }
+  }, [userId, sigHtml, sigEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,6 +318,43 @@ export default function SequenceApprovalPanel({
     })();
     return () => { cancelled = true; };
   }, [sequenceId]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(EMAIL_LLM_STORAGE_KEY);
+      if (raw && isAllowedEmailLlmModel(raw)) setEmailLlmModel(raw);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(EMAIL_LLM_STORAGE_KEY, emailLlmModel);
+    } catch {
+      /* ignore */
+    }
+  }, [emailLlmModel]);
+
+  useEffect(() => {
+    if (!sigModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSigModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sigModalOpen]);
+
+  useEffect(() => {
+    if (!modelDropOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (modelDropRef.current && !modelDropRef.current.contains(e.target as Node)) {
+        setModelDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [modelDropOpen]);
 
   const current = previews[index];
   const approvedCount = Object.values(cardStates).filter((s) => s === "approved").length;
@@ -337,6 +476,7 @@ export default function SequenceApprovalPanel({
           currentSubject: override?.subject ?? current.subject,
           currentBody: override?.body ?? current.body,
           skipResearch: hasResearch,
+          model: emailLlmModel,
         }),
       });
 
@@ -365,7 +505,7 @@ export default function SequenceApprovalPanel({
     } finally {
       setRewritingId(null);
     }
-  }, [current, edits, editingId, sequenceId, textToHtml, setCardState]);
+  }, [current, edits, editingId, sequenceId, textToHtml, setCardState, emailLlmModel]);
 
   const handleRedoEmail = useCallback(async () => {
     if (!current) return;
@@ -386,6 +526,7 @@ export default function SequenceApprovalPanel({
           currentSubject: override?.subject ?? current.subject,
           currentBody: override?.body ?? current.body,
           skipResearch: true,
+          model: emailLlmModel,
         }),
       });
 
@@ -408,7 +549,7 @@ export default function SequenceApprovalPanel({
     } finally {
       setRewritingId(null);
     }
-  }, [current, edits, editingId, sequenceId, textToHtml, setCardState]);
+  }, [current, edits, editingId, sequenceId, textToHtml, setCardState, emailLlmModel]);
 
   const handleRedoResearch = useCallback(async () => {
     if (!current) return;
@@ -423,6 +564,7 @@ export default function SequenceApprovalPanel({
           leadName: current.leadName,
           email: current.email,
           company: current.company,
+          model: emailLlmModel,
         }),
       });
 
@@ -447,7 +589,7 @@ export default function SequenceApprovalPanel({
     } finally {
       setResearchingId(null);
     }
-  }, [current]);
+  }, [current, emailLlmModel]);
 
   const acceptAiDraft = useCallback(() => {
     if (!current) return;
@@ -489,7 +631,8 @@ export default function SequenceApprovalPanel({
     const override = edits[current.enrollmentId];
     const finalSubject = override?.subject ?? current.subject;
     const finalBody = override?.body ?? current.body;
-    const finalIsHtml = override ? true : current.isHtml;
+    const finalIsHtml =
+      !!override || current.isHtml || bodyLooksLikeHtml(finalBody);
 
     setCardState(current.enrollmentId, "approving");
     setErrors((prev) => ({ ...prev, [current.enrollmentId]: "" }));
@@ -531,7 +674,18 @@ export default function SequenceApprovalPanel({
         [current.enrollmentId]: "Network error — please try again",
       }));
     }
-  }, [current, cardStates, edits, editingId, draftSubject, draftBody, sequenceId, index, previews.length, goNext]);
+  }, [
+    current,
+    cardStates,
+    edits,
+    editingId,
+    draftSubject,
+    draftBody,
+    sequenceId,
+    index,
+    previews.length,
+    goNext,
+  ]);
 
   const handleDecline = useCallback(() => {
     if (!current) return;
@@ -586,6 +740,7 @@ export default function SequenceApprovalPanel({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (sigModalOpenRef.current) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const r = keyboardRef.current;
       if (r.allDone) return;
@@ -949,6 +1104,85 @@ export default function SequenceApprovalPanel({
                   </div>
                 </div>
                 <div className="shrink-0 ml-3 flex items-center gap-2">
+                  {/* AI model selector */}
+                  <div ref={modelDropRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setModelDropOpen((o) => !o)}
+                      title="AI model used for rewrite & research"
+                      className={`flex h-9 cursor-pointer items-center gap-1.5 rounded-[9px] border px-2.5 transition-all ${
+                        modelDropOpen
+                          ? "border-copper/50 bg-copper-light/40 text-copper"
+                          : "border-edge bg-surface text-ink-mid hover:border-copper/30 hover:bg-copper-light/20 hover:text-copper"
+                      }`}
+                    >
+                      <Cpu className="h-3.5 w-3.5 shrink-0" />
+                      <span className="max-w-[90px] truncate text-[11px] font-semibold">
+                        {EMAIL_LLM_MODELS.find((m) => m.id === emailLlmModel)?.label ?? emailLlmModel}
+                      </span>
+                      <svg className={`h-3 w-3 shrink-0 transition-transform ${modelDropOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+
+                    {modelDropOpen && (
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[220px] overflow-hidden rounded-[12px] border border-edge bg-surface shadow-lg">
+                        <div className="border-b border-edge px-3 py-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-light">AI Model</p>
+                          <p className="text-[10px] text-ink-light">Used for rewrite &amp; research</p>
+                        </div>
+                        <div className="p-1.5">
+                          {EMAIL_LLM_MODELS.map((m) => {
+                            const active = emailLlmModel === m.id;
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => { setEmailLlmModel(m.id); setModelDropOpen(false); }}
+                                className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] px-3 py-2 text-left transition-colors ${
+                                  active
+                                    ? "bg-copper-light/60 text-copper"
+                                    : "text-ink-mid hover:bg-cream hover:text-ink"
+                                }`}
+                              >
+                                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? "border-copper bg-copper" : "border-edge bg-surface"}`}>
+                                  {active && <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[12px] font-semibold leading-tight">{m.label}</p>
+                                  <p className={`text-[10px] ${active ? "text-copper/70" : "text-ink-light"}`}>{m.hint}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {userId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSigSaveError(null);
+                        setSigModalOpen(true);
+                      }}
+                      title={
+                        sigDirty
+                          ? "Email signature — unsaved changes"
+                          : sigEnabled
+                            ? "Email signature — added when drafts are generated"
+                            : "Email signature — off (not added to new drafts)"
+                      }
+                      className="relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-[9px] border border-edge bg-surface text-ink-mid transition-all hover:border-copper/30 hover:bg-copper-light/30 hover:text-copper"
+                    >
+                      <FileSignature className="h-4 w-4" />
+                      {sigDirty && (
+                        <span
+                          className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber ring-2 ring-surface"
+                          aria-hidden
+                        />
+                      )}
+                    </button>
+                  )}
                   <span className="rounded-full bg-cream-deep px-2.5 py-[4px] text-[11px] font-bold text-ink-mid md:hidden">
                     {index + 1}/{previews.length}
                   </span>
@@ -1293,7 +1527,7 @@ export default function SequenceApprovalPanel({
                 </div>
 
                 {/* Body */}
-                <div className="min-h-[340px]">
+                <div className="flex min-h-[340px] flex-col">
                   {rewritingId === current.enrollmentId && !hasAiDraft ? (
                     <div className="px-5 py-4">
                       <EmailSkeleton hasResearch={!!(leadResearch[current.leadId] || current.research)} />
@@ -1303,6 +1537,7 @@ export default function SequenceApprovalPanel({
                       content={draftBody}
                       onChange={setDraftBody}
                       placeholder="Write your email…"
+                      className="min-h-[340px] flex-1"
                     />
                   ) : emailIsEmpty ? (
                     <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
@@ -1474,14 +1709,119 @@ export default function SequenceApprovalPanel({
     </div>
   );
 
+  const signatureModal =
+    userId && sigModalOpen ? (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <button
+          type="button"
+          aria-label="Close"
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          onClick={() => setSigModalOpen(false)}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sig-modal-title"
+          className="animate-scale-up relative z-10 flex w-full max-w-[580px] flex-col rounded-[16px] border border-edge bg-surface shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-edge px-5 py-4">
+            <div>
+              <h2
+                id="sig-modal-title"
+                className="font-[family-name:var(--font-display)] text-[16px] font-bold tracking-[-0.02em] text-ink"
+              >
+                Email signature
+              </h2>
+              <p className="mt-0.5 text-[11px] text-ink-light">
+                Merged into drafts at generation time, not on send.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSigModalOpen(false)}
+              className="cursor-pointer rounded-[8px] p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid"
+            >
+              <X className="h-[16px] w-[16px]" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-3 px-5 py-4">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={sigEnabled}
+                onChange={(e) => setSigEnabled(e.target.checked)}
+                className="h-4 w-4 shrink-0 rounded border-edge text-copper focus:ring-copper"
+              />
+              <span className="text-[12px] font-medium text-ink-mid">
+                Add signature when email is generated
+              </span>
+            </label>
+            <div className="rounded-[10px] border border-edge bg-cream/20">
+              <RichTextEditor
+                content={sigHtml}
+                onChange={setSigHtml}
+                placeholder="Best regards, Your name · Title · Company"
+                compact
+                className="min-h-[160px]"
+              />
+            </div>
+            {sigSaveError && (
+              <p className="text-[11px] font-medium text-rose" role="alert">
+                Could not save: {sigSaveError}. Regenerate the email to pick up changes.
+              </p>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-edge bg-cream/30 px-5 py-3">
+            <button
+              type="button"
+              onClick={() => setSigModalOpen(false)}
+              className="cursor-pointer rounded-[10px] border border-edge bg-surface px-4 py-2 text-[13px] font-semibold text-ink-mid transition-colors hover:bg-cream"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void saveSignature().then((ok) => {
+                  if (ok) setSigModalOpen(false);
+                });
+              }}
+              disabled={sigSaving || !sigDirty}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-copper px-5 py-2 text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {sigSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : sigSavedFlash ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {sigSavedFlash ? "Saved" : "Save"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null;
+
   if (standalone) {
-    return panel;
+    return (
+      <>
+        {panel}
+        {signatureModal}
+      </>
+    );
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      {panel}
-    </div>
+    <>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        {panel}
+      </div>
+      {signatureModal}
+    </>
   );
 }

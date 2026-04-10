@@ -8,8 +8,6 @@ class Settings(BaseSettings):
 
     azure_openai_endpoint: str
     azure_openai_api_key: str
-    azure_openai_deployment: str = "gpt-4o"
-    azure_openai_mini_deployment: str = "gpt-5-mini"
     azure_openai_api_version: str = "2024-12-01-preview"
 
     brave_search_api_key: str = ""

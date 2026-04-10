@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getValidAccessToken, getGraphClient } from "@/lib/outlook";
 import { getValidGoogleAccessToken, sendGmailEmail } from "@/lib/google";
-import { inlineEmailHtml } from "@/lib/sequence";
+import { bodyLooksLikeHtml, inlineEmailHtml } from "@/lib/sequence";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Lead not found or missing email" }, { status: 404 });
   }
 
-  // Look up sender name/email for proper "From" display
   let senderName = "";
   let senderEmail = "";
   if (enrollment?.user_id) {
@@ -50,7 +49,8 @@ export async function POST(req: NextRequest) {
   const sequenceName =
     (await supabase.from("sequences").select("name").eq("id", sequenceId).single()).data?.name ?? "";
 
-  const finalBody = isHtml ? inlineEmailHtml(body) : body;
+  const effectiveIsHtml = !!isHtml || bodyLooksLikeHtml(body);
+  const finalBody = effectiveIsHtml ? inlineEmailHtml(body) : body;
 
   try {
     if (outlookToken) {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       await client.api("/me/sendMail").post({
         message: {
           subject,
-          body: { contentType: isHtml ? "HTML" : "Text", content: finalBody },
+          body: { contentType: effectiveIsHtml ? "HTML" : "Text", content: finalBody },
           toRecipients: [{ emailAddress: { address: lead.email } }],
           from: senderName
             ? { emailAddress: { name: senderName, address: senderEmail } }
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         to: lead.email,
         subject,
         body: finalBody,
-        isHtml,
+        isHtml: effectiveIsHtml,
         fromName: senderName,
         fromEmail: senderEmail,
       });
@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  // Advance enrollment
   const { data: steps } = await supabase
     .from("sequence_steps")
     .select("step_order, delay_days")
@@ -96,7 +95,7 @@ export async function POST(req: NextRequest) {
     current_step: 2,
     generated_subject: subject,
     generated_body: finalBody,
-    is_html: !!isHtml,
+    is_html: effectiveIsHtml,
     generated_at: now.toISOString(),
   };
 
@@ -109,10 +108,7 @@ export async function POST(req: NextRequest) {
     updates.completed_at = now.toISOString();
   }
 
-  await supabase
-    .from("sequence_enrollments")
-    .update(updates)
-    .eq("id", enrollmentId);
+  await supabase.from("sequence_enrollments").update(updates).eq("id", enrollmentId);
 
   if (enrollment?.user_id) {
     await supabase.from("sent_emails").insert({
@@ -127,11 +123,10 @@ export async function POST(req: NextRequest) {
       step_number: 1,
       subject,
       body: finalBody,
-      is_html: !!isHtml,
+      is_html: effectiveIsHtml,
     });
   }
 
-  // Check if whole sequence is now done
   const { data: remaining } = await supabase
     .from("sequence_enrollments")
     .select("id")
