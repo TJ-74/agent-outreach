@@ -748,33 +748,39 @@ export default function SequenceApprovalPanel({
       const hasDraft = eid ? !!r.aiDrafts[eid] : false;
       switch (e.key) {
         case "ArrowLeft":
+          if (!e.ctrlKey) break;
           e.preventDefault();
           r.goPrev();
           break;
         case "ArrowRight":
+          if (!e.ctrlKey) break;
           e.preventDefault();
           r.goNext();
           break;
         case "a":
         case "A":
+          if (!e.ctrlKey) break;
           e.preventDefault();
           if (hasDraft) r.acceptAiDraft();
           else r.handleApprove();
           break;
         case "d":
         case "D":
+          if (!e.ctrlKey) break;
           e.preventDefault();
           if (hasDraft) r.rejectAiDraft();
           else r.handleDecline();
           break;
         case "e":
         case "E":
+          if (!e.ctrlKey) break;
           e.preventDefault();
           if (r.editingId) r.cancelEdit();
           else r.startEdit();
           break;
         case "g":
         case "G":
+          if (!e.ctrlKey) break;
           e.preventDefault();
           r.handleAiRewrite();
           break;
@@ -978,12 +984,12 @@ export default function SequenceApprovalPanel({
           </button>
           {showShortcuts && (
             <div className="mt-2 space-y-1 text-[10px] text-ink-mid">
-              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">A</kbd> Approve & send</p>
-              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">D</kbd> Decline</p>
-              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">G</kbd> AI rewrite</p>
-              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">E</kbd> Edit email</p>
+              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+A</kbd> Approve & send</p>
+              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+D</kbd> Decline</p>
+              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+G</kbd> AI rewrite</p>
+              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+E</kbd> Edit email</p>
               <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Esc</kbd> Cancel edit</p>
-              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">&larr;</kbd> <kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">&rarr;</kbd> Navigate</p>
+              <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+&larr;</kbd> <kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+&rarr;</kbd> Navigate</p>
             </div>
           )}
         </div>
