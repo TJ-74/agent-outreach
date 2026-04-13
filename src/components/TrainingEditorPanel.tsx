@@ -151,6 +151,7 @@ export default function TrainingEditorPanel({
 
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   // Example email form
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -179,22 +180,40 @@ export default function TrainingEditorPanel({
     companyDescription,
   }), [name, description, brandVoice, tone, customInstructions, dos, donts, exampleEmails, followUpExample, senderName, senderTitle, companyName, companyDescription]);
 
-  const handleSave = async () => {
-    if (!name.trim()) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!name.trim()) return false;
+
+    setSaveError(false);
+    let ok = false;
 
     if (isNew && !configId) {
       const created = await createConfig(name, description);
       if (created) {
         setConfigId(created.id);
-        await updateConfig(created.id, gatherUpdates());
+        ok = await updateConfig(created.id, gatherUpdates());
       }
     } else if (configId) {
-      await updateConfig(configId, gatherUpdates());
+      ok = await updateConfig(configId, gatherUpdates());
     }
 
-    setDirty(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    if (ok) {
+      setDirty(false);
+      setSaved(true);
+      setSaveError(false);
+      setTimeout(() => setSaved(false), 3000);
+    } else {
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 4000);
+    }
+
+    return ok;
+  };
+
+  const handleClose = async () => {
+    if (dirty) {
+      await handleSave();
+    }
+    onClose();
   };
 
   const handleSaveAndClose = async () => {
@@ -288,7 +307,7 @@ export default function TrainingEditorPanel({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={handleClose} />
 
       <div className="relative z-10 flex h-full w-[50vw] min-w-[480px] flex-col bg-surface shadow-lg animate-slide-in">
         {/* ── Header ── */}
@@ -317,6 +336,11 @@ export default function TrainingEditorPanel({
                   Saved
                 </span>
               )}
+              {saveError && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose">
+                  Save failed
+                </span>
+              )}
               <button
                 onClick={handleSaveAndClose}
                 disabled={saving || !name.trim()}
@@ -326,7 +350,7 @@ export default function TrainingEditorPanel({
                 Save
               </button>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="cursor-pointer rounded-[8px] p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid"
               >
                 <X className="h-[18px] w-[18px]" />
@@ -749,10 +773,14 @@ export default function TrainingEditorPanel({
         </div>
 
         {/* ── Sticky footer ── */}
-        {dirty && (
+        {(dirty || saveError) && (
           <div className="border-t border-edge bg-cream/60 px-8 py-3">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] font-medium text-ink-mid">Unsaved changes</span>
+              {saveError ? (
+                <span className="text-[12px] font-medium text-rose">Save failed — check your connection and try again</span>
+              ) : (
+                <span className="text-[12px] font-medium text-ink-mid">Unsaved changes</span>
+              )}
               <button
                 onClick={handleSave}
                 disabled={saving || !name.trim()}

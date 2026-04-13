@@ -144,7 +144,7 @@ interface TrainingState {
 
   fetchConfigs: () => Promise<void>;
   createConfig: (name: string, description?: string) => Promise<TrainingConfig | null>;
-  updateConfig: (id: string, updates: ConfigUpdates) => Promise<void>;
+  updateConfig: (id: string, updates: ConfigUpdates) => Promise<boolean>;
   deleteConfig: (id: string) => Promise<void>;
   duplicateConfig: (id: string) => Promise<TrainingConfig | null>;
 }
@@ -225,8 +225,10 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
         ),
         saving: false,
       }));
+      return true;
     } else {
       set({ saving: false });
+      return false;
     }
   },
 
