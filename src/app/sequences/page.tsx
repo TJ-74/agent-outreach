@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, GitBranch, Trash2, Pencil, Play, Pause, Users, Loader2 } from "lucide-react";
-import { useSequenceStore, type Sequence, type SequenceStatus } from "@/store/sequences";
+import { Plus, GitBranch, Trash2, Pencil, Users, Loader2 } from "lucide-react";
+import { useSequenceStore, type Sequence } from "@/store/sequences";
 import SequenceBuilder from "@/components/SequenceBuilder";
-import clsx from "clsx";
 
 const STATUS_STYLE: Record<SequenceStatus, { bg: string; text: string; label: string }> = {
   draft: { bg: "bg-cream-deep", text: "text-ink-mid", label: "Draft" },
@@ -14,7 +13,7 @@ const STATUS_STYLE: Record<SequenceStatus, { bg: string; text: string; label: st
 };
 
 export default function SequencesPage() {
-  const { sequences, loading, fetchSequences, deleteSequence, updateSequence } = useSequenceStore();
+  const { sequences, loading, fetchSequences, deleteSequence } = useSequenceStore();
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingSequence, setEditingSequence] = useState<Sequence | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -40,11 +39,6 @@ export default function SequencesPage() {
     setEditingSequence(null);
     setIsNew(false);
     fetchSequences();
-  };
-
-  const toggleStatus = async (seq: Sequence) => {
-    const next: SequenceStatus = seq.status === "active" ? "paused" : "active";
-    await updateSequence(seq.id, { status: next });
   };
 
   if (loading && sequences.length === 0) {
@@ -119,24 +113,6 @@ export default function SequencesPage() {
 
                 {/* Actions */}
                 <div className="mt-4 flex items-center gap-1 border-t border-edge pt-3" onClick={(e) => e.stopPropagation()}>
-                  {seq.status !== "completed" ? (
-                    <button
-                      onClick={() => toggleStatus(seq)}
-                      title={seq.status === "active" ? "Pause" : "Activate"}
-                      className={clsx(
-                        "cursor-pointer rounded-[7px] p-[6px] transition-colors",
-                        seq.status === "active"
-                          ? "text-amber hover:bg-amber-light"
-                          : "text-sage hover:bg-sage-light"
-                      )}
-                    >
-                      {seq.status === "active" ? <Pause className="h-[15px] w-[15px]" /> : <Play className="h-[15px] w-[15px]" />}
-                    </button>
-                  ) : (
-                    <span className="rounded-[7px] px-2 py-[6px] text-[11px] font-semibold text-copper">
-                      Done
-                    </span>
-                  )}
                   <button
                     onClick={() => openEdit(seq)}
                     className="cursor-pointer rounded-[7px] p-[6px] text-ink-light transition-colors hover:bg-cream-deep hover:text-ink"

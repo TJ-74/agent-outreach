@@ -141,6 +141,7 @@ interface TrainingState {
   configs: TrainingConfig[];
   loading: boolean;
   saving: boolean;
+  lastSaveError: string | null;
 
   fetchConfigs: () => Promise<void>;
   createConfig: (name: string, description?: string) => Promise<TrainingConfig | null>;
@@ -153,6 +154,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
   configs: [],
   loading: false,
   saving: false,
+  lastSaveError: null,
 
   fetchConfigs: async () => {
     const uid = getUserId();
@@ -224,10 +226,17 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
             : c,
         ),
         saving: false,
+        lastSaveError: null,
       }));
       return true;
     } else {
-      set({ saving: false });
+      console.error("[Training] Supabase update failed:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      set({ saving: false, lastSaveError: error.message ?? "Unknown error" });
       return false;
     }
   },

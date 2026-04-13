@@ -126,7 +126,7 @@ export default function TrainingEditorPanel({
   isNew,
   onClose,
 }: Props) {
-  const { createConfig, updateConfig, saving, configs } = useTrainingStore();
+  const { createConfig, updateConfig, saving, configs, lastSaveError } = useTrainingStore();
 
   const [tab, setTab] = useState<Tab>("voice");
   const [configId, setConfigId] = useState<string | null>(config?.id ?? null);
@@ -337,8 +337,11 @@ export default function TrainingEditorPanel({
                 </span>
               )}
               {saveError && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose">
-                  Save failed
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose"
+                  title={lastSaveError ?? undefined}
+                >
+                  Save failed{lastSaveError ? ` — ${lastSaveError}` : ""}
                 </span>
               )}
               <button
@@ -777,7 +780,9 @@ export default function TrainingEditorPanel({
           <div className="border-t border-edge bg-cream/60 px-8 py-3">
             <div className="flex items-center justify-between">
               {saveError ? (
-                <span className="text-[12px] font-medium text-rose">Save failed — check your connection and try again</span>
+                <span className="text-[12px] font-medium text-rose" title={lastSaveError ?? undefined}>
+                  {lastSaveError ?? "Save failed — check your connection and try again"}
+                </span>
               ) : (
                 <span className="text-[12px] font-medium text-ink-mid">Unsaved changes</span>
               )}
