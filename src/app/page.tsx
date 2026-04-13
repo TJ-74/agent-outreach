@@ -85,8 +85,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        setData(d && d.totals ? d : null);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
@@ -104,7 +107,22 @@ export default function Dashboard() {
   if (!data) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-[14px] text-ink-mid">Could not load dashboard data.</p>
+        <div className="flex flex-col items-center gap-4 text-center animate-fade-up">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-cream-deep">
+            <Zap className="h-6 w-6 text-ink-light" />
+          </div>
+          <div>
+            <p className="text-[15px] font-semibold text-ink">Nothing here yet</p>
+            <p className="mt-1 text-[13px] text-ink-mid">Add your first lead or sequence to get started.</p>
+          </div>
+          <Link
+            href="/leads"
+            className="inline-flex items-center gap-2 rounded-[10px] bg-copper px-5 py-2.5 text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover"
+          >
+            <UserPlus className="h-4 w-4" />
+            Add Your First Lead
+          </Link>
+        </div>
       </div>
     );
   }
