@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, GitBranch, Trash2, Pencil, Users, Loader2 } from "lucide-react";
-import { useSequenceStore, type Sequence } from "@/store/sequences";
+import { useSequenceStore, type Sequence, type SequenceStatus } from "@/store/sequences";
 import SequenceBuilder from "@/components/SequenceBuilder";
 
 const STATUS_STYLE: Record<SequenceStatus, { bg: string; text: string; label: string }> = {
