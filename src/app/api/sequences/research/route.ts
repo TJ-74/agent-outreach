@@ -11,10 +11,26 @@ async function summarizeResearch(
   model: string,
   rawResearch: string,
   personName: string,
+  email: string,
   companyName: string | undefined,
 ): Promise<string> {
+  const domain = email.split("@")[1] ?? "";
+  const identity = [
+    companyName ? `company: ${companyName}` : null,
+    domain ? `email domain: ${domain}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   const prompt = [
     "You are a research analyst. Given raw web search results about a person and/or their company, write a clear, well-structured research brief.",
+    "",
+    `The person you are researching is: ${personName}${identity ? ` (${identity})` : ""}.`,
+    "",
+    "IMPORTANT — disambiguation rule: Some search results may be about a DIFFERENT person who happens to share the same name.",
+    "Before using any result, check whether it is consistent with the known identity above (matching company name, email domain, or the same professional context).",
+    "If a result is clearly about someone else (different company, different industry, mismatched location, etc.), IGNORE it entirely.",
+    "If you are uncertain whether a result belongs to this person, omit it rather than include potentially wrong information.",
     "",
     "Format the output as follows:",
     `## ${personName}`,
@@ -27,7 +43,7 @@ async function summarizeResearch(
     "List 3-5 bullet points that would be useful when reaching out to this person (shared interests, relevant company initiatives, pain points you can address).",
     "",
     "Rules:",
-    "- Only include information you can infer from the search results. Do not fabricate.",
+    "- Only include information you can verify from the (correctly attributed) search results. Do not fabricate.",
     '- If no useful information was found for a section, write "No information found."',
     "- Keep it concise and actionable.",
     "- Use plain text with ## for headings and - for bullet points.",
@@ -88,6 +104,7 @@ export async function POST(req: NextRequest) {
       deployment,
       rawResearch.combined,
       leadName ?? "Unknown",
+      email,
       company || undefined,
     );
 

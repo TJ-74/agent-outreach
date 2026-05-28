@@ -59,6 +59,11 @@ interface Props {
   sequenceId: string;
   sequenceName: string;
   previews: LeadPreview[];
+  totalPreviews?: number;
+  page?: number;
+  pageSize?: number;
+  loadingPage?: boolean;
+  onPageChange?: (page: number) => void;
   onClose: () => void;
   onSequenceCompleted?: () => void;
   standalone?: boolean;
@@ -190,6 +195,11 @@ export default function SequenceApprovalPanel({
   sequenceId,
   sequenceName,
   previews,
+  totalPreviews,
+  page = 1,
+  pageSize,
+  loadingPage = false,
+  onPageChange,
   onClose,
   onSequenceCompleted,
   standalone = false,
@@ -226,6 +236,12 @@ export default function SequenceApprovalPanel({
   const [sigModalOpen, setSigModalOpen] = useState(false);
   const [modelDropOpen, setModelDropOpen] = useState(false);
   const modelDropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIndex(0);
+    setContentTab("email");
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [page]);
   const sigModalOpenRef = useRef(false);
   sigModalOpenRef.current = sigModalOpen;
   const [sigSaving, setSigSaving] = useState(false);
@@ -359,8 +375,16 @@ export default function SequenceApprovalPanel({
   }, [modelDropOpen]);
 
   const current = previews[index];
-  const approvedCount = Object.values(cardStates).filter((s) => s === "approved").length;
-  const declinedCount = Object.values(cardStates).filter((s) => s === "declined").length;
+  const effectivePageSize = pageSize ?? Math.max(previews.length, 1);
+  const totalAvailable = totalPreviews ?? previews.length;
+  const totalPages = Math.max(1, Math.ceil(totalAvailable / effectivePageSize));
+  const hasPrevPage = page > 1;
+  const hasNextPage = page < totalPages;
+  const pageOffset = (page - 1) * effectivePageSize;
+  const currentPosition = current ? Math.min(totalAvailable, pageOffset + index + 1) : pageOffset;
+  const currentPageStates = previews.map((p) => cardStates[p.enrollmentId] ?? "idle");
+  const approvedCount = currentPageStates.filter((s) => s === "approved").length;
+  const declinedCount = currentPageStates.filter((s) => s === "declined").length;
 
   const orgClusters = useMemo(
     () => clusterByDomain(previews, (p) => p.email).filter((c) => !c.isFree),
@@ -381,7 +405,9 @@ export default function SequenceApprovalPanel({
       )
     : [];
   const totalDone = approvedCount + declinedCount;
-  const allDone = totalDone === previews.length;
+  const currentPageDone = previews.length > 0 && totalDone === previews.length;
+  const allDone = currentPageDone;
+  const queueDone = currentPageDone && !hasNextPage;
   const progressPct = previews.length > 0 ? (totalDone / previews.length) * 100 : 0;
 
   const setCardState = (id: string, state: CardState) =>
@@ -398,8 +424,24 @@ export default function SequenceApprovalPanel({
     [index, previews.length]
   );
 
-  const goNext = useCallback(() => navigateTo(Math.min(index + 1, previews.length - 1)), [index, previews.length, navigateTo]);
-  const goPrev = useCallback(() => navigateTo(Math.max(index - 1, 0)), [index, navigateTo]);
+  const goNext = useCallback(() => {
+    if (index < previews.length - 1) {
+      navigateTo(index + 1);
+      return;
+    }
+    if (hasNextPage && onPageChange && !loadingPage) {
+      onPageChange(page + 1);
+    }
+  }, [hasNextPage, index, loadingPage, navigateTo, onPageChange, page, previews.length]);
+  const goPrev = useCallback(() => {
+    if (index > 0) {
+      navigateTo(index - 1);
+      return;
+    }
+    if (hasPrevPage && onPageChange && !loadingPage) {
+      onPageChange(page - 1);
+    }
+  }, [hasPrevPage, index, loadingPage, navigateTo, onPageChange, page]);
 
   const persistDraft = useCallback(
     (enrollmentId: string, subject: string, body: string, isHtml = false) => {
@@ -852,7 +894,9 @@ export default function SequenceApprovalPanel({
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-ink">{sequenceName}</p>
-            <p className="text-[10px] text-ink-light">{previews.length} leads</p>
+            <p className="text-[10px] text-ink-light">
+              Page {page} of {totalPages} · {totalAvailable} leads
+            </p>
           </div>
         </div>
 
@@ -912,7 +956,7 @@ export default function SequenceApprovalPanel({
                 >
                   <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${stateBg(p.enrollmentId)}`}>
                     {stateIcon(p.enrollmentId) ?? (
-                      <span className="text-[10px] font-bold text-white">{globalIdx + 1}</span>
+                      <span className="text-[10px] font-bold text-white">{pageOffset + globalIdx + 1}</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -986,6 +1030,25 @@ export default function SequenceApprovalPanel({
 
         {/* Keyboard hint */}
         <div className="border-t border-edge px-4 py-2.5">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
+            <button
+              onClick={() => onPageChange?.(page - 1)}
+              disabled={!onPageChange || !hasPrevPage || loadingPage}
+              className="cursor-pointer rounded-[8px] border border-edge px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              Prev page
+            </button>
+            <span className="text-[10px] font-medium text-ink-light">
+              {loadingPage ? "Loading..." : `${page}/${totalPages}`}
+            </span>
+            <button
+              onClick={() => onPageChange?.(page + 1)}
+              disabled={!onPageChange || !hasNextPage || loadingPage}
+              className="cursor-pointer rounded-[8px] border border-edge px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              Next page
+            </button>
+          </div>
           <button
             onClick={() => setShowShortcuts((s) => !s)}
             className="cursor-pointer flex items-center gap-1.5 text-[10px] text-ink-light hover:text-ink-mid transition-colors"
@@ -1015,7 +1078,9 @@ export default function SequenceApprovalPanel({
           </button>
           <div className="text-center">
             <p className="text-[13px] font-semibold text-ink">{sequenceName}</p>
-            <p className="text-[10px] text-ink-light">{totalDone}/{previews.length} reviewed</p>
+            <p className="text-[10px] text-ink-light">
+              Page {page}/{totalPages} · {totalDone}/{previews.length} reviewed
+            </p>
           </div>
           <button onClick={onClose} className="cursor-pointer rounded-[7px] p-1.5 text-ink-light hover:bg-cream hover:text-ink-mid">
             <X className="h-4 w-4" />
@@ -1034,19 +1099,25 @@ export default function SequenceApprovalPanel({
             <div className="flex flex-col items-center justify-center px-8 py-20 text-center animate-scale-up">
               <div className="relative">
                 <div className={`flex h-20 w-20 items-center justify-center rounded-[22px] shadow-md ${
-                  sequenceDone ? "bg-sage" : "bg-copper"
+                  queueDone && sequenceDone ? "bg-sage" : "bg-copper"
                 }`}>
                   <Check className="h-9 w-9 text-white" strokeWidth={2.5} />
                 </div>
               </div>
 
               <p className="mt-6 font-[family-name:var(--font-display)] text-[20px] font-bold text-ink">
-                {sequenceDone ? "Sequence complete!" : "All leads reviewed"}
+                {queueDone && sequenceDone
+                  ? "Sequence complete!"
+                  : hasNextPage
+                    ? "Page reviewed"
+                    : "All leads reviewed"}
               </p>
               <p className="mt-1.5 max-w-[340px] text-[13px] leading-[1.6] text-ink-mid">
-                {sequenceDone
+                {queueDone && sequenceDone
                   ? "Every lead has been processed — the sequence is marked as done."
-                  : "You've reviewed all pending emails for this sequence."}
+                  : hasNextPage
+                    ? "This page is done. Load the next page to continue reviewing pending approvals."
+                    : "You've reviewed all pending emails for this sequence."}
               </p>
 
               {/* Stats */}
@@ -1063,12 +1134,17 @@ export default function SequenceApprovalPanel({
 
               <button
                 onClick={() => {
+                  if (hasNextPage && onPageChange) {
+                    onPageChange(page + 1);
+                    return;
+                  }
                   if (sequenceDone) onSequenceCompleted?.();
                   onClose();
                 }}
+                disabled={loadingPage}
                 className="mt-8 cursor-pointer rounded-[10px] bg-copper px-7 py-2.5 text-[13px] font-semibold text-white shadow-copper transition-all hover:bg-copper-hover active:scale-[0.98]"
               >
-                Done
+                {hasNextPage ? (loadingPage ? "Loading..." : "Next page") : "Done"}
               </button>
             </div>
           ) : current ? (
@@ -1210,7 +1286,7 @@ export default function SequenceApprovalPanel({
                     </button>
                   )}
                   <span className="rounded-full bg-cream-deep px-2.5 py-[4px] text-[11px] font-bold text-ink-mid md:hidden">
-                    {index + 1}/{previews.length}
+                    {currentPosition}/{totalAvailable}
                   </span>
                   {trainingProfileName && (
                     <div className="flex min-w-0 items-center gap-1.5 rounded-[8px] bg-copper-light/40 px-2.5 py-1.5">
@@ -1642,20 +1718,20 @@ export default function SequenceApprovalPanel({
               <div className="flex items-center justify-between gap-1.5 md:justify-start">
                 <button
                   onClick={goPrev}
-                  disabled={index === 0}
+                  disabled={loadingPage || (index === 0 && !hasPrevPage)}
                   className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-[9px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:opacity-30"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
                   onClick={goNext}
-                  disabled={index >= previews.length - 1}
+                  disabled={loadingPage || (index >= previews.length - 1 && !hasNextPage)}
                   className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-[9px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:opacity-30"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
                 <span className="ml-2 hidden md:inline text-[11px] text-ink-light">
-                  {totalDone} of {previews.length} reviewed
+                  Page {page}/{totalPages} · {totalDone} of {previews.length} reviewed
                 </span>
               </div>
 

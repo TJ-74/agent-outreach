@@ -7,6 +7,9 @@ import {
 } from "@/lib/sequence";
 import { chunkArray, SUPABASE_IN_FILTER_CHUNK_SIZE, SUPABASE_PAGE_SIZE } from "@/lib/batch";
 
+const DEFAULT_APPROVAL_PAGE_SIZE = 25;
+const MAX_APPROVAL_PAGE_SIZE = 100;
+
 export interface LeadPreview {
   enrollmentId: string;
   leadId: string;
@@ -82,6 +85,32 @@ async function fetchPendingEnrollments(sequenceId: string): Promise<EnrollmentRo
   }
 
   return rows;
+}
+
+async function fetchPendingEnrollmentPage(
+  sequenceId: string,
+  page: number,
+  pageSize: number,
+): Promise<{ rows: EnrollmentRow[]; total: number }> {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const { data, error, count } = await supabase
+    .from("sequence_enrollments")
+    .select(
+      "id, lead_id, user_id, current_step, status, generated_subject, generated_body, is_html, generated_at",
+      { count: "exact" },
+    )
+    .eq("sequence_id", sequenceId)
+    .eq("current_step", 1)
+    .neq("status", "completed")
+    .order("enrolled_at", { ascending: false })
+    .range(from, to);
+
+  if (error || !data) {
+    return { rows: [], total: 0 };
+  }
+
+  return { rows: data as EnrollmentRow[], total: count ?? 0 };
 }
 
 async function fetchPendingEnrollmentsForLeads(
@@ -175,14 +204,27 @@ async function fetchPreviousConversations(
 }
 
 export async function POST(req: NextRequest) {
-  const { sequenceId, leadIds } = await req.json();
+  const { sequenceId, leadIds, page: pageInput, pageSize: pageSizeInput } = await req.json();
   const requestedLeadIds = Array.isArray(leadIds) ? (leadIds as string[]) : null;
+  const page =
+    typeof pageInput === "number" && Number.isFinite(pageInput)
+      ? Math.max(1, Math.floor(pageInput))
+      : null;
+  const pageSize =
+    typeof pageSizeInput === "number" && Number.isFinite(pageSizeInput)
+      ? Math.min(MAX_APPROVAL_PAGE_SIZE, Math.max(1, Math.floor(pageSizeInput)))
+      : DEFAULT_APPROVAL_PAGE_SIZE;
   if (!sequenceId) {
     return NextResponse.json({ error: "Missing sequenceId" }, { status: 400 });
   }
   if (requestedLeadIds && requestedLeadIds.length === 0) {
-    return NextResponse.json({ previews: [], skipped: [] });
+    return NextResponse.json({ previews: [], skipped: [], pagination: { page: 1, pageSize, total: 0 } });
   }
+
+  const pagedEnrollments =
+    !requestedLeadIds && page
+      ? await fetchPendingEnrollmentPage(sequenceId, page, pageSize)
+      : null;
 
   const [stepsRes, enrollments] = await Promise.all([
     supabase
@@ -190,9 +232,11 @@ export async function POST(req: NextRequest) {
       .select("*")
       .eq("sequence_id", sequenceId)
       .order("step_order", { ascending: true }),
-    requestedLeadIds
-      ? fetchPendingEnrollmentsForLeads(sequenceId, requestedLeadIds)
-      : fetchPendingEnrollments(sequenceId),
+    pagedEnrollments
+      ? Promise.resolve(pagedEnrollments.rows)
+      : requestedLeadIds
+        ? fetchPendingEnrollmentsForLeads(sequenceId, requestedLeadIds)
+        : fetchPendingEnrollments(sequenceId),
   ]);
 
   const steps = stepsRes.data ?? [];
@@ -338,5 +382,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ previews, skipped });
+  return NextResponse.json({
+    previews,
+    skipped,
+    pagination: pagedEnrollments
+      ? {
+          page: page ?? 1,
+          pageSize,
+          total: pagedEnrollments.total,
+        }
+      : undefined,
+  });
 }
