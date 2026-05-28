@@ -91,6 +91,62 @@ export function getGraphClient(accessToken: string): Client {
   });
 }
 
+function escapeODataString(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+export async function findRecentSentMessageId(
+  client: Client,
+  recipientEmail: string,
+  subject: string,
+): Promise<string | null> {
+  const normalizedRecipient = recipientEmail.trim().toLowerCase();
+  const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const sent = await client
+      .api("/me/mailFolders/SentItems/messages")
+      .filter(`sentDateTime ge ${since}`)
+      .select("id,subject,sentDateTime,toRecipients")
+      .orderby("sentDateTime desc")
+      .top(20)
+      .get()
+      .catch(() => ({ value: [] }));
+
+    const match = (sent.value ?? []).find((msg: {
+      id?: string;
+      subject?: string;
+      toRecipients?: Array<{ emailAddress?: { address?: string } }>;
+    }) => {
+      const sameSubject = (msg.subject ?? "") === subject;
+      const hasRecipient = (msg.toRecipients ?? []).some(
+        (recipient) => recipient.emailAddress?.address?.toLowerCase() === normalizedRecipient
+      );
+      return sameSubject && hasRecipient;
+    });
+
+    if (match?.id) return match.id;
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
+
+  // Fallback for subjects that Outlook normalizes, e.g. duplicate spaces or prefixes.
+  const searched = await client
+    .api("/me/mailFolders/SentItems/messages")
+    .search(`"to:${escapeODataString(normalizedRecipient)}"`)
+    .select("id,subject,sentDateTime,toRecipients")
+    .top(10)
+    .get()
+    .catch(() => ({ value: [] }));
+
+  const normalizedSubject = subject.trim().toLowerCase();
+  const fallback = (searched.value ?? []).find((msg: { id?: string; subject?: string }) =>
+    (msg.subject ?? "").trim().toLowerCase() === normalizedSubject
+  );
+
+  return fallback?.id ?? null;
+}
+
 export async function saveTokens(
   accessToken: string,
   refreshToken: string,

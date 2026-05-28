@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { chunkArray, SUPABASE_PAGE_SIZE, SUPABASE_WRITE_CHUNK_SIZE } from "@/lib/batch";
 
 export interface Group {
   id: string;
@@ -37,6 +38,15 @@ interface MemberRow {
   added_at: string;
 }
 
+type MemberWithLeadRow = MemberRow & {
+  leads: {
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    company: string | null;
+  } | null;
+};
+
 function rowToGroup(row: GroupRow): Group {
   return {
     id: row.id,
@@ -55,6 +65,58 @@ function rowToMember(row: MemberRow): GroupMember {
     leadId: row.lead_id,
     addedAt: row.added_at,
   };
+}
+
+function rowToMemberWithLead(row: MemberWithLeadRow): GroupMember {
+  const firstName = row.leads?.first_name ?? "";
+  const lastName = row.leads?.last_name ?? "";
+  const leadName = `${firstName} ${lastName}`.trim();
+
+  return {
+    ...rowToMember(row),
+    leadName: leadName || undefined,
+    leadEmail: row.leads?.email ?? undefined,
+    leadCompany: row.leads?.company ?? undefined,
+  };
+}
+
+async function fetchAllGroupMemberRows(groupId: string): Promise<MemberWithLeadRow[]> {
+  const rows: MemberWithLeadRow[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("*, leads(first_name, last_name, email, company)")
+      .eq("group_id", groupId)
+      .order("added_at", { ascending: false })
+      .range(from, to);
+
+    if (error || !data) break;
+    rows.push(...(data as MemberWithLeadRow[]));
+    if (data.length < SUPABASE_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchAllGroupLeadIds(groupId: string): Promise<string[]> {
+  const leadIds: string[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("lead_id")
+      .eq("group_id", groupId)
+      .range(from, to);
+
+    if (error || !data) break;
+    leadIds.push(...data.map((row) => row.lead_id));
+    if (data.length < SUPABASE_PAGE_SIZE) break;
+  }
+
+  return leadIds;
 }
 
 function getUserId(): string | null {
@@ -101,23 +163,18 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
     const groups = (data as GroupRow[]).map(rowToGroup);
 
-    const ids = groups.map((g) => g.id);
-    if (ids.length > 0) {
-      const { data: memberRows } = await supabase
-        .from("group_members")
-        .select("group_id")
-        .in("group_id", ids);
+    const groupsWithCounts = await Promise.all(
+      groups.map(async (group) => {
+        const { count } = await supabase
+          .from("group_members")
+          .select("id", { count: "exact", head: true })
+          .eq("group_id", group.id);
 
-      const countMap = new Map<string, number>();
-      for (const r of memberRows ?? []) {
-        countMap.set(r.group_id, (countMap.get(r.group_id) ?? 0) + 1);
-      }
-      for (const g of groups) {
-        g.memberCount = countMap.get(g.id) ?? 0;
-      }
-    }
+        return { ...group, memberCount: count ?? 0 };
+      })
+    );
 
-    set({ groups, loading: false });
+    set({ groups: groupsWithCounts, loading: false });
   },
 
   createGroup: async (name, description = "") => {
@@ -159,47 +216,33 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   },
 
   fetchMembers: async (groupId) => {
-    const { data } = await supabase
-      .from("group_members")
-      .select("*, leads(first_name, last_name, email, company)")
-      .eq("group_id", groupId)
-      .order("added_at", { ascending: false });
+    const rows = await fetchAllGroupMemberRows(groupId);
+    const members = rows.map(rowToMemberWithLead);
 
-    if (data) {
-      const members: GroupMember[] = data.map((row: Record<string, unknown>) => {
-        const lead = row.leads as Record<string, string> | null;
-        return {
-          id: row.id as string,
-          groupId: row.group_id as string,
-          leadId: row.lead_id as string,
-          addedAt: row.added_at as string,
-          leadName: lead ? `${lead.first_name} ${lead.last_name}` : undefined,
-          leadEmail: lead?.email,
-          leadCompany: lead?.company,
-        };
-      });
-      set({ members });
-    }
+    set((s) => ({
+      members,
+      groups: s.groups.map((g) =>
+        g.id === groupId ? { ...g, memberCount: members.length } : g
+      ),
+    }));
   },
 
   addMembers: async (groupId, leadIds) => {
     if (leadIds.length === 0) return;
 
-    const existing = get().members.map((m) => m.leadId);
+    const existing = await fetchAllGroupLeadIds(groupId);
     const newIds = leadIds.filter((id) => !existing.includes(id));
     if (newIds.length === 0) return;
 
     const rows = newIds.map((leadId) => ({ group_id: groupId, lead_id: leadId }));
-    const { error } = await supabase.from("group_members").insert(rows);
+    const chunks = chunkArray(rows, SUPABASE_WRITE_CHUNK_SIZE);
 
-    if (!error) {
-      await get().fetchMembers(groupId);
-      set((s) => ({
-        groups: s.groups.map((g) =>
-          g.id === groupId ? { ...g, memberCount: (g.memberCount ?? 0) + newIds.length } : g
-        ),
-      }));
+    for (const chunk of chunks) {
+      const { error } = await supabase.from("group_members").insert(chunk);
+      if (error) return;
     }
+
+    await get().fetchMembers(groupId);
   },
 
   removeMember: async (memberId) => {

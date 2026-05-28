@@ -27,6 +27,7 @@ import {
   type TrainingConfig,
   type ConfigUpdates,
 } from "@/store/training";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 
 type Tab = "voice" | "rules" | "instructions" | "examples";
 
@@ -158,6 +159,8 @@ export default function TrainingEditorPanel({
   const [emailLabel, setEmailLabel] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+  const [exampleToDelete, setExampleToDelete] = useState<number | null>(null);
+  const [deleteFollowUpOpen, setDeleteFollowUpOpen] = useState(false);
 
   const markDirty = useCallback(() => {
     setDirty(true);
@@ -237,6 +240,16 @@ export default function TrainingEditorPanel({
     markDirty();
   };
   const removeExampleEmail = (i: number) => { setExampleEmails((prev) => prev.filter((_, idx) => idx !== i)); markDirty(); };
+  const confirmRemoveExampleEmail = () => {
+    if (exampleToDelete == null) return;
+    removeExampleEmail(exampleToDelete);
+    setExampleToDelete(null);
+  };
+  const confirmRemoveFollowUpExample = () => {
+    setFollowUpExample(null);
+    markDirty();
+    setDeleteFollowUpOpen(false);
+  };
 
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const importDropdownRef = useRef<HTMLDivElement>(null);
@@ -309,10 +322,10 @@ export default function TrainingEditorPanel({
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={handleClose} />
 
-      <div className="relative z-10 flex h-full w-[50vw] min-w-[480px] flex-col bg-surface shadow-lg animate-slide-in">
+      <div className="relative z-10 flex h-full w-full flex-col bg-surface shadow-lg animate-slide-in sm:max-w-[92vw] lg:w-[50vw] lg:min-w-[480px]">
         {/* ── Header ── */}
-        <div className="border-b border-edge px-8 py-6">
-          <div className="flex items-start justify-between">
+        <div className="border-b border-edge px-4 py-5 sm:px-8 sm:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1 min-w-0">
               <input
                 type="text"
@@ -329,7 +342,7 @@ export default function TrainingEditorPanel({
                 className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
               />
             </div>
-            <div className="flex items-center gap-2 ml-4 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0 sm:ml-4 sm:justify-end">
               {saved && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sage">
                   <CheckCircle className="h-3 w-3" />
@@ -631,7 +644,7 @@ export default function TrainingEditorPanel({
                           <Pencil className="h-3 w-3" />
                         </button>
                         <button
-                          onClick={() => removeExampleEmail(i)}
+                          onClick={() => setExampleToDelete(i)}
                           className="cursor-pointer shrink-0 rounded-[6px] p-1 text-ink-light opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-light hover:text-rose"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -703,7 +716,7 @@ export default function TrainingEditorPanel({
                           <Pencil className="h-3 w-3" />
                         </button>
                         <button
-                          onClick={() => { setFollowUpExample(null); markDirty(); }}
+                          onClick={() => setDeleteFollowUpOpen(true)}
                           className="cursor-pointer shrink-0 rounded-[6px] p-1 text-ink-light opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-light hover:text-rose"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -798,6 +811,20 @@ export default function TrainingEditorPanel({
           </div>
         )}
       </div>
+      <ConfirmDeleteModal
+        open={exampleToDelete != null}
+        title="Delete example email?"
+        description="Remove this example email from the training profile? This cannot be undone."
+        onConfirm={confirmRemoveExampleEmail}
+        onClose={() => setExampleToDelete(null)}
+      />
+      <ConfirmDeleteModal
+        open={deleteFollowUpOpen}
+        title="Delete follow-up example?"
+        description="Remove this follow-up example from the training profile? This cannot be undone."
+        onConfirm={confirmRemoveFollowUpExample}
+        onClose={() => setDeleteFollowUpOpen(false)}
+      />
     </div>
   );
 }

@@ -118,7 +118,7 @@ function SettingsContent() {
     : null;
 
   return (
-    <div className="min-h-screen py-10 px-6 md:px-10">
+    <div className="min-h-screen px-4 py-8 sm:px-6 md:px-10 md:py-10">
       <div className="mx-auto max-w-[760px]">
 
         {/* Toasts */}
@@ -147,8 +147,8 @@ function SettingsContent() {
           </div>
 
           {/* Identity */}
-          <div className="px-8 pt-14 pb-8">
-            <div className="flex items-start justify-between mb-6">
+          <div className="px-5 pt-14 pb-6 sm:px-8 sm:pb-8">
+            <div className="mb-6 flex items-start justify-between gap-3">
               <div>
                 <h1 className="font-[family-name:var(--font-display)] text-[22px] font-extrabold tracking-[-0.02em] text-ink">
                   {displayName}
@@ -179,7 +179,7 @@ function SettingsContent() {
 
             {/* Stats row */}
             {stats && (
-              <div className="grid grid-cols-4 gap-3 mb-8">
+              <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   { icon: Users, label: "Leads", value: stats.leads, color: "text-copper" },
                   { icon: GitBranch, label: "Sequences", value: stats.sequences, color: "text-copper" },
@@ -197,7 +197,7 @@ function SettingsContent() {
 
             {/* Edit name */}
             <div className="border-t border-edge pt-6">
-              <div className="grid grid-cols-[1fr_1fr] gap-4">
+              <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-light">
                     Display Name

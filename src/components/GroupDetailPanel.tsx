@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { X, Plus, Trash2, Loader2, Save, Search, UserPlus, Upload, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Loader2, Save, Search, UserPlus, Upload, AlertTriangle } from "lucide-react";
 import { useGroupStore, type Group } from "@/store/groups";
-import { useLeadStore } from "@/store/leads";
+import type { GroupMember } from "@/store/groups";
+import { useLeadStore, type Lead } from "@/store/leads";
 import ImportLeadsCsvModal from "@/components/ImportLeadsCsvModal";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import { clusterByDomain } from "@/lib/domain";
 
 interface Props {
@@ -22,8 +24,7 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
     createGroup,
     updateGroup,
   } = useGroupStore();
-  const leads = useLeadStore((s) => s.leads);
-  const fetchLeads = useLeadStore((s) => s.fetchLeads);
+  const searchAllLeads = useLeadStore((s) => s.searchAllLeads);
 
   const [name, setName] = useState(group?.name ?? "");
   const [description, setDescription] = useState(group?.description ?? "");
@@ -31,15 +32,15 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
   const [groupId, setGroupId] = useState<string | null>(group?.id ?? null);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Lead[]>([]);
+  const [searching, setSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);
+  const [removingMember, setRemovingMember] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    fetchLeads();
-  }, [fetchLeads]);
 
   useEffect(() => {
     if (group?.id) {
@@ -56,6 +57,18 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Debounced search against full leads database
+  useEffect(() => {
+    if (!showDropdown) return;
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      const results = await searchAllLeads(searchQuery);
+      setSearchResults(results);
+      setSearching(false);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, showDropdown, searchAllLeads]);
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -80,17 +93,7 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
   );
   const orgClusters = domainClusters.filter((c) => !c.isFree);
 
-  const filteredLeads = leads.filter((lead) => {
-    if (memberLeadIds.has(lead.id)) return false;
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      lead.firstName.toLowerCase().includes(q) ||
-      lead.lastName.toLowerCase().includes(q) ||
-      lead.email.toLowerCase().includes(q) ||
-      lead.company.toLowerCase().includes(q)
-    );
-  });
+  const filteredLeads = searchResults.filter((lead) => !memberLeadIds.has(lead.id));
 
   const toggleLeadSelection = (leadId: string) => {
     setSelectedLeadIds((prev) =>
@@ -113,14 +116,22 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
     await addMembers(groupId, leadIds);
   };
 
+  const confirmRemoveMember = async () => {
+    if (!memberToRemove) return;
+    setRemovingMember(true);
+    await removeMember(memberToRemove.id);
+    setRemovingMember(false);
+    setMemberToRemove(null);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
       <div className="relative z-10 flex h-full w-full max-w-[640px] flex-col bg-surface shadow-lg animate-slide-in">
         {/* Header */}
-        <div className="border-b border-edge px-8 py-6">
-          <div className="flex items-start justify-between">
+        <div className="border-b border-edge px-4 py-5 sm:px-8 sm:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1">
               <input
                 type="text"
@@ -137,7 +148,7 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                 className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
               />
             </div>
-            <div className="flex items-center gap-2 ml-4 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 sm:ml-4">
               <button
                 onClick={onClose}
                 className="cursor-pointer rounded-[8px] border border-edge px-3.5 py-[7px] text-[12px] font-semibold text-ink-mid transition-all hover:bg-cream hover:text-ink"
@@ -157,7 +168,7 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">
           {!groupId ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="rounded-[14px] bg-cream-deep p-5">
@@ -195,12 +206,21 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                       placeholder="Search leads by name, email, or company..."
                       className="w-full rounded-[10px] border border-edge bg-surface py-[9px] pl-9 pr-4 text-[13px] text-ink placeholder:text-ink-light outline-none transition-all hover:border-edge-strong focus:border-copper focus:ring-[3px] focus:ring-copper-light"
                     />
+                    {searching && (
+                      <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-ink-light" />
+                    )}
                   </div>
 
-                  {showDropdown && filteredLeads.length > 0 && (
+                  {showDropdown && (filteredLeads.length > 0 || searching) && (
                     <div className="absolute left-0 right-0 top-full z-20 mt-1 flex max-h-[280px] flex-col rounded-[10px] border border-edge bg-surface shadow-md">
                       <div className="flex-1 overflow-y-auto">
-                        {filteredLeads.slice(0, 20).map((lead) => {
+                        {searching && filteredLeads.length === 0 ? (
+                          <div className="flex items-center justify-center gap-2 py-6 text-[12px] text-ink-mid">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Searching leads...
+                          </div>
+                        ) : null}
+                        {filteredLeads.map((lead) => {
                           const isSelected = selectedLeadIds.includes(lead.id);
                           return (
                             <button
@@ -350,7 +370,7 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                               </td>
                               <td className="px-4 py-2.5 text-right">
                                 <button
-                                  onClick={() => removeMember(member.id)}
+                                  onClick={() => setMemberToRemove(member)}
                                   className="cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -376,6 +396,15 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
           onImportedLeadIds={handleImported}
         />
       )}
+      <ConfirmDeleteModal
+        open={!!memberToRemove}
+        title="Remove lead from group?"
+        description={`Remove ${memberToRemove?.leadName || memberToRemove?.leadEmail || "this lead"} from this group?`}
+        confirmLabel="Remove"
+        loading={removingMember}
+        onConfirm={confirmRemoveMember}
+        onClose={() => setMemberToRemove(null)}
+      />
     </div>
   );
 }

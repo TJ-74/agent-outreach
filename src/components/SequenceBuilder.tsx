@@ -27,6 +27,7 @@ import {
   Brain,
 } from "lucide-react";
 import CustomSelect from "@/components/CustomSelect";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import {
   useSequenceStore,
   type Sequence,
@@ -37,6 +38,7 @@ import { useGroupStore } from "@/store/groups";
 import { useLeadStore } from "@/store/leads";
 import { useTrainingStore, getToneOption } from "@/store/training";
 import { clusterByDomain } from "@/lib/domain";
+import { buildPreviewSrcDoc } from "@/lib/html-preview";
 
 interface Props {
   sequence: Sequence | null;
@@ -75,7 +77,7 @@ function HtmlPreview({ html, className }: { html: string; className?: string }) 
   const { theme } = useTheme();
   return (
     <iframe
-      srcDoc={iframeStyle(theme === "dark") + html}
+      srcDoc={buildPreviewSrcDoc(iframeStyle(theme === "dark"), html)}
       sandbox="allow-same-origin"
       className={className}
       style={{ border: "none", width: "100%", display: "block" }}
@@ -125,6 +127,10 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
 
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [previewStepId, setPreviewStepId] = useState<string | null>(null);
+  const [stepToDelete, setStepToDelete] = useState<SequenceStep | null>(null);
+  const [enrollmentToRemove, setEnrollmentToRemove] = useState<string | null>(null);
+  const [deletingStep, setDeletingStep] = useState(false);
+  const [removingEnrollment, setRemovingEnrollment] = useState(false);
 
   const [stepSubject, setStepSubject] = useState("");
   const [stepBody, setStepBody] = useState("");
@@ -280,6 +286,22 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
     await reorderSteps(seqId, newOrder);
   };
 
+  const confirmDeleteStep = async () => {
+    if (!stepToDelete) return;
+    setDeletingStep(true);
+    await removeStep(stepToDelete.id);
+    setDeletingStep(false);
+    setStepToDelete(null);
+  };
+
+  const confirmRemoveEnrollment = async () => {
+    if (!enrollmentToRemove) return;
+    setRemovingEnrollment(true);
+    await unenrollLead(enrollmentToRemove);
+    setRemovingEnrollment(false);
+    setEnrollmentToRemove(null);
+  };
+
   const insertVariable = useCallback((varKey: string) => {
     const tag = `{{${varKey}}}`;
     if (lastFocusedRef.current === "subject") {
@@ -319,10 +341,10 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
-      <div className="relative z-10 flex h-full w-[75vw] min-w-[540px] flex-col bg-surface shadow-lg animate-slide-in">
+      <div className="relative z-10 flex h-full w-full flex-col bg-surface shadow-lg animate-slide-in sm:max-w-[92vw] lg:w-[75vw] lg:min-w-[540px]">
         {/* Header */}
-        <div className="border-b border-edge px-8 py-6">
-          <div className="flex items-start justify-between">
+        <div className="border-b border-edge px-4 py-5 sm:px-8 sm:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1">
               <input
                 type="text"
@@ -339,7 +361,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                 className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
               />
             </div>
-            <div className="flex items-center gap-2 ml-4">
+            <div className="flex flex-wrap items-center gap-2 sm:ml-4 sm:justify-end">
               {seqId && status !== "completed" && (
                 <button
                   onClick={handlePlayPause}
@@ -515,6 +537,11 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
 
                 const renderRow = (enrollment: typeof enrollments[number]) => {
                   const lead = enrolledLeadMap.get(enrollment.leadId);
+                  const leadName = [
+                    enrollment.leadFirstName ?? lead?.firstName,
+                    enrollment.leadLastName ?? lead?.lastName,
+                  ].filter(Boolean).join(" ").trim();
+                  const leadEmail = enrollment.leadEmail ?? lead?.email;
                   const isSent = enrollment.currentStep > 1 || enrollment.status === "completed";
 
                   let stepLabel = "";
@@ -535,17 +562,17 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[12px] font-semibold text-ink">
-                          {lead ? `${lead.firstName} ${lead.lastName}` : "Unknown Lead"}
+                          {leadName || leadEmail || "Unknown Lead"}
                         </p>
                         <p className="truncate text-[11px] text-ink-mid">
-                          {lead?.email ?? enrollment.leadId}
+                          {leadEmail ?? enrollment.leadId}
                         </p>
                         <p className={`mt-0.5 truncate text-[10px] font-medium ${isSent ? "text-sage" : "text-amber"}`}>
                           {stepLabel}{enrollment.status === "completed" ? " (done)" : ""}
                         </p>
                       </div>
                       <button
-                        onClick={() => unenrollLead(enrollment.id)}
+                        onClick={() => setEnrollmentToRemove(enrollment.id)}
                         className="ml-2 cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
                         title="Unenroll"
                       >
@@ -919,7 +946,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                                   <PenLine className="h-3.5 w-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => removeStep(step.id)}
+                                  onClick={() => setStepToDelete(step)}
                                   className="cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -1003,6 +1030,23 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
           </div>
         )}
       </div>
+      <ConfirmDeleteModal
+        open={!!stepToDelete}
+        title="Delete sequence step?"
+        description={`Delete step ${stepToDelete?.stepOrder ?? ""}? This cannot be undone.`}
+        loading={deletingStep}
+        onConfirm={confirmDeleteStep}
+        onClose={() => setStepToDelete(null)}
+      />
+      <ConfirmDeleteModal
+        open={!!enrollmentToRemove}
+        title="Unenroll lead?"
+        description="Remove this lead from the sequence? This cannot be undone."
+        confirmLabel="Unenroll"
+        loading={removingEnrollment}
+        onConfirm={confirmRemoveEnrollment}
+        onClose={() => setEnrollmentToRemove(null)}
+      />
     </div>
   );
 }

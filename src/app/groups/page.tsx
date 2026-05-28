@@ -4,12 +4,15 @@ import { useState, useEffect } from "react";
 import { Plus, FolderOpen, Trash2, Pencil, Users, Loader2 } from "lucide-react";
 import { useGroupStore, type Group } from "@/store/groups";
 import GroupDetailPanel from "@/components/GroupDetailPanel";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 
 export default function GroupsPage() {
   const { groups, loading, fetchGroups, deleteGroup } = useGroupStore();
   const [panelOpen, setPanelOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Group | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchGroups();
@@ -34,6 +37,14 @@ export default function GroupsPage() {
     fetchGroups();
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await deleteGroup(deleteTarget.id);
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   if (loading && groups.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3">
@@ -44,7 +55,7 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1080px] px-10 py-12">
+    <div className="mx-auto max-w-[1080px] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -57,7 +68,7 @@ export default function GroupsPage() {
         </div>
         <button
           onClick={openNew}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98]"
+          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:w-auto"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />
           Create Group
@@ -104,7 +115,7 @@ export default function GroupsPage() {
                   <Pencil className="h-[15px] w-[15px]" />
                 </button>
                 <button
-                  onClick={() => deleteGroup(group.id)}
+                  onClick={() => setDeleteTarget(group)}
                   className="cursor-pointer rounded-[7px] p-[6px] text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
                 >
                   <Trash2 className="h-[15px] w-[15px]" />
@@ -142,6 +153,14 @@ export default function GroupsPage() {
           onClose={handleClose}
         />
       )}
+      <ConfirmDeleteModal
+        open={!!deleteTarget}
+        title="Delete group?"
+        description={`Delete "${deleteTarget?.name ?? "this group"}" and remove its memberships? This cannot be undone.`}
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

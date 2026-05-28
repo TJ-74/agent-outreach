@@ -63,13 +63,21 @@ export default function EditLeadModal({ lead, onClose }: Props) {
       return;
     }
     setSaving(true);
-    await updateLead(lead.id, form);
+    const result = await updateLead(lead.id, form);
     setSaving(false);
+    if (result.duplicate) {
+      setErrors({ email: "A lead with this email already exists" });
+      return;
+    }
+    if (!result.success) {
+      setErrors({ email: "Could not update lead" });
+      return;
+    }
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
         onClick={onClose}
@@ -77,7 +85,7 @@ export default function EditLeadModal({ lead, onClose }: Props) {
 
       <div className="animate-scale-up relative z-10 flex w-full max-w-[520px] max-h-[90vh] flex-col rounded-[20px] border border-edge bg-surface shadow-lg">
         {/* Sticky header */}
-        <div className="flex shrink-0 items-start justify-between px-8 pt-8 pb-6">
+        <div className="flex shrink-0 items-start justify-between px-5 pt-6 pb-5 sm:px-8 sm:pt-8 sm:pb-6">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-[20px] font-bold tracking-[-0.02em] text-ink">
               Edit Lead
@@ -96,10 +104,10 @@ export default function EditLeadModal({ lead, onClose }: Props) {
 
         {/* Scrollable body */}
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
-        <div className="flex-1 overflow-y-auto px-8">
+        <div className="flex-1 overflow-y-auto px-5 sm:px-8">
         <div className="space-y-7 pb-2">
           <Section icon={<User className="h-3.5 w-3.5" />} label="Personal">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="First Name"
                 value={form.firstName}
@@ -130,7 +138,7 @@ export default function EditLeadModal({ lead, onClose }: Props) {
           </Section>
 
           <Section icon={<Building2 className="h-3.5 w-3.5" />} label="Company">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="Company"
                 value={form.company}

@@ -5,6 +5,7 @@ import {
   substituteTemplate,
   dbLeadToVars,
 } from "@/lib/sequence";
+import { chunkArray, SUPABASE_IN_FILTER_CHUNK_SIZE, SUPABASE_PAGE_SIZE } from "@/lib/batch";
 
 export interface LeadPreview {
   enrollmentId: string;
@@ -18,6 +19,10 @@ export interface LeadPreview {
   body: string;
   isHtml: boolean;
   research: string;
+  hasPreviousConversation: boolean;
+  previousConversationCount: number;
+  previousConversationAt: string | null;
+  previousConversationSubject: string;
 }
 
 interface EnrollmentRow {
@@ -43,38 +48,158 @@ interface LeadRow {
   linked_in: string | null;
 }
 
-export async function POST(req: NextRequest) {
-  const { sequenceId, leadIds } = await req.json();
-  if (!sequenceId || !Array.isArray(leadIds) || leadIds.length === 0) {
-    return NextResponse.json({ error: "Missing sequenceId or leadIds" }, { status: 400 });
-  }
+interface ConversationRow {
+  lead_id: string;
+  subject: string | null;
+  sent_at: string | null;
+}
 
-  const [stepsRes, enrollmentsRes, leadsRes] = await Promise.all([
-    supabase
-      .from("sequence_steps")
-      .select("*")
-      .eq("sequence_id", sequenceId)
-      .order("step_order", { ascending: true }),
-    supabase
+interface PreviousConversationInfo {
+  count: number;
+  latestAt: string | null;
+  latestSubject: string;
+}
+
+async function fetchPendingEnrollments(sequenceId: string): Promise<EnrollmentRow[]> {
+  const rows: EnrollmentRow[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
       .from("sequence_enrollments")
       .select(
         "id, lead_id, user_id, current_step, status, generated_subject, generated_body, is_html, generated_at",
       )
       .eq("sequence_id", sequenceId)
-      .in("lead_id", leadIds)
       .eq("current_step", 1)
-      .neq("status", "completed"),
-    supabase
+      .neq("status", "completed")
+      .order("enrolled_at", { ascending: false })
+      .range(from, to);
+
+    if (error || !data) break;
+    rows.push(...(data as EnrollmentRow[]));
+    if (data.length < SUPABASE_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchPendingEnrollmentsForLeads(
+  sequenceId: string,
+  leadIds: string[],
+): Promise<EnrollmentRow[]> {
+  const rows: EnrollmentRow[] = [];
+
+  for (const chunk of chunkArray(leadIds, SUPABASE_IN_FILTER_CHUNK_SIZE)) {
+    const { data } = await supabase
+      .from("sequence_enrollments")
+      .select(
+        "id, lead_id, user_id, current_step, status, generated_subject, generated_body, is_html, generated_at",
+      )
+      .eq("sequence_id", sequenceId)
+      .in("lead_id", chunk)
+      .eq("current_step", 1)
+      .neq("status", "completed");
+
+    rows.push(...((data ?? []) as EnrollmentRow[]));
+  }
+
+  return rows;
+}
+
+async function fetchLeads(leadIds: string[]): Promise<LeadRow[]> {
+  const rows: LeadRow[] = [];
+
+  for (const chunk of chunkArray(leadIds, SUPABASE_IN_FILTER_CHUNK_SIZE)) {
+    const { data } = await supabase
       .from("leads")
       .select("id, first_name, last_name, email, company, job_title, research, linked_in")
-      .in("id", leadIds),
+      .in("id", chunk);
+
+    rows.push(...((data ?? []) as LeadRow[]));
+  }
+
+  return rows;
+}
+
+async function fetchPreviousConversations(
+  userIds: string[],
+  leadIds: string[],
+): Promise<Map<string, PreviousConversationInfo>> {
+  const history = new Map<string, PreviousConversationInfo>();
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+  const uniqueLeadIds = [...new Set(leadIds.filter(Boolean))];
+  if (uniqueUserIds.length === 0 || uniqueLeadIds.length === 0) return history;
+
+  const addRows = (rows: ConversationRow[]) => {
+    for (const row of rows) {
+      if (!row.lead_id) continue;
+      const current = history.get(row.lead_id) ?? {
+        count: 0,
+        latestAt: null,
+        latestSubject: "",
+      };
+      current.count += 1;
+
+      const rowTime = row.sent_at ? new Date(row.sent_at).getTime() : 0;
+      const latestTime = current.latestAt ? new Date(current.latestAt).getTime() : 0;
+      if (rowTime >= latestTime) {
+        current.latestAt = row.sent_at;
+        current.latestSubject = row.subject ?? "";
+      }
+      history.set(row.lead_id, current);
+    }
+  };
+
+  for (const userChunk of chunkArray(uniqueUserIds, SUPABASE_IN_FILTER_CHUNK_SIZE)) {
+    for (const leadChunk of chunkArray(uniqueLeadIds, SUPABASE_IN_FILTER_CHUNK_SIZE)) {
+      const [{ data: sentRows }, { data: inboundRows }] = await Promise.all([
+        supabase
+          .from("sent_emails")
+          .select("lead_id, subject, sent_at")
+          .in("user_id", userChunk)
+          .in("lead_id", leadChunk),
+        supabase
+          .from("messages")
+          .select("lead_id, subject, sent_at")
+          .in("user_id", userChunk)
+          .in("lead_id", leadChunk),
+      ]);
+
+      addRows((sentRows ?? []) as ConversationRow[]);
+      addRows((inboundRows ?? []) as ConversationRow[]);
+    }
+  }
+
+  return history;
+}
+
+export async function POST(req: NextRequest) {
+  const { sequenceId, leadIds } = await req.json();
+  const requestedLeadIds = Array.isArray(leadIds) ? (leadIds as string[]) : null;
+  if (!sequenceId) {
+    return NextResponse.json({ error: "Missing sequenceId" }, { status: 400 });
+  }
+  if (requestedLeadIds && requestedLeadIds.length === 0) {
+    return NextResponse.json({ previews: [], skipped: [] });
+  }
+
+  const [stepsRes, enrollments] = await Promise.all([
+    supabase
+      .from("sequence_steps")
+      .select("*")
+      .eq("sequence_id", sequenceId)
+      .order("step_order", { ascending: true }),
+    requestedLeadIds
+      ? fetchPendingEnrollmentsForLeads(sequenceId, requestedLeadIds)
+      : fetchPendingEnrollments(sequenceId),
   ]);
 
   const steps = stepsRes.data ?? [];
   const step1 = steps.find((s: { step_order: number }) => s.step_order === 1);
 
-  const enrollments = (enrollmentsRes.data ?? []) as EnrollmentRow[];
-  const leads = (leadsRes.data ?? []) as LeadRow[];
+  const previewLeadIds = [...new Set(enrollments.map((e) => e.lead_id))];
+  const leads = previewLeadIds.length > 0 ? await fetchLeads(previewLeadIds) : [];
 
   const leadMap = new Map(leads.map((l) => [l.id, l]));
   const previews: LeadPreview[] = [];
@@ -82,15 +207,20 @@ export async function POST(req: NextRequest) {
   const toUpsert: { id: string; generated_subject: string; generated_body: string; is_html: boolean; generated_at: string }[] = [];
 
   const ownerIds = [...new Set(enrollments.map((e) => e.user_id).filter(Boolean))];
+  const previousConversationByLead = await fetchPreviousConversations(ownerIds, previewLeadIds);
   const signatureUsers =
     ownerIds.length === 0
       ? []
       : (
-          await supabase
-            .from("users")
-            .select("id, email_signature, email_signature_enabled")
-            .in("id", ownerIds)
-        ).data ?? [];
+          await Promise.all(
+            chunkArray(ownerIds, SUPABASE_IN_FILTER_CHUNK_SIZE).map((chunk) =>
+              supabase
+                .from("users")
+                .select("id, email_signature, email_signature_enabled")
+                .in("id", chunk),
+            ),
+          )
+        ).flatMap((res) => res.data ?? []);
 
   const sigByUser = new Map<
     string,
@@ -111,6 +241,13 @@ export async function POST(req: NextRequest) {
     }
 
     const leadName = `${lead.first_name ?? ""} ${lead.last_name ?? ""}`.trim() || lead.email;
+    const previousConversation = previousConversationByLead.get(lead.id);
+    const previousConversationFields = {
+      hasPreviousConversation: !!previousConversation?.count,
+      previousConversationCount: previousConversation?.count ?? 0,
+      previousConversationAt: previousConversation?.latestAt ?? null,
+      previousConversationSubject: previousConversation?.latestSubject ?? "",
+    };
 
     // If we already generated and saved this email, use the saved version
     if (enrollment.generated_at && enrollment.generated_subject !== null) {
@@ -125,6 +262,7 @@ export async function POST(req: NextRequest) {
         body: enrollment.generated_body ?? "",
         isHtml: enrollment.is_html ?? false,
         research: lead.research ?? "",
+        ...previousConversationFields,
       });
       continue;
     }
@@ -169,6 +307,7 @@ export async function POST(req: NextRequest) {
       body,
       isHtml,
       research: lead.research ?? "",
+      ...previousConversationFields,
     });
 
     toUpsert.push({
@@ -182,18 +321,21 @@ export async function POST(req: NextRequest) {
 
   // Persist generated emails so they survive page reloads and edits
   if (toUpsert.length > 0) {
-    const updates = toUpsert.map((row) =>
-      supabase
-        .from("sequence_enrollments")
-        .update({
-          generated_subject: row.generated_subject,
-          generated_body: row.generated_body,
-          is_html: row.is_html,
-          generated_at: row.generated_at,
-        })
-        .eq("id", row.id)
-    );
-    await Promise.all(updates);
+    for (const chunk of chunkArray(toUpsert, SUPABASE_IN_FILTER_CHUNK_SIZE)) {
+      await Promise.all(
+        chunk.map((row) =>
+          supabase
+            .from("sequence_enrollments")
+            .update({
+              generated_subject: row.generated_subject,
+              generated_body: row.generated_body,
+              is_html: row.is_html,
+              generated_at: row.generated_at,
+            })
+            .eq("id", row.id),
+        ),
+      );
+    }
   }
 
   return NextResponse.json({ previews, skipped });

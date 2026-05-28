@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, GitBranch, Trash2, Pencil, Users, Loader2 } from "lucide-react";
 import { useSequenceStore, type Sequence, type SequenceStatus } from "@/store/sequences";
 import SequenceBuilder from "@/components/SequenceBuilder";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 
 const STATUS_STYLE: Record<SequenceStatus, { bg: string; text: string; label: string }> = {
   draft: { bg: "bg-cream-deep", text: "text-ink-mid", label: "Draft" },
@@ -17,6 +18,8 @@ export default function SequencesPage() {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingSequence, setEditingSequence] = useState<Sequence | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Sequence | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchSequences();
@@ -41,6 +44,14 @@ export default function SequencesPage() {
     fetchSequences();
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await deleteSequence(deleteTarget.id);
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   if (loading && sequences.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3">
@@ -51,7 +62,7 @@ export default function SequencesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1080px] px-10 py-12">
+    <div className="mx-auto max-w-[1080px] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -64,7 +75,7 @@ export default function SequencesPage() {
         </div>
         <button
           onClick={openNew}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98]"
+          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:w-auto"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />
           Create Sequence
@@ -120,7 +131,7 @@ export default function SequencesPage() {
                     <Pencil className="h-[15px] w-[15px]" />
                   </button>
                   <button
-                    onClick={() => deleteSequence(seq.id)}
+                    onClick={() => setDeleteTarget(seq)}
                     className="cursor-pointer rounded-[7px] p-[6px] text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
                   >
                     <Trash2 className="h-[15px] w-[15px]" />
@@ -159,6 +170,14 @@ export default function SequencesPage() {
           onClose={handleClose}
         />
       )}
+      <ConfirmDeleteModal
+        open={!!deleteTarget}
+        title="Delete sequence?"
+        description={`Delete "${deleteTarget?.name ?? "this sequence"}" and its steps/enrollments? This cannot be undone.`}
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

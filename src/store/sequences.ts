@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { chunkArray, SUPABASE_PAGE_SIZE, SUPABASE_WRITE_CHUNK_SIZE } from "@/lib/batch";
 
 export type SequenceStatus = "active" | "paused" | "draft" | "completed";
 
@@ -38,6 +39,10 @@ export interface SequenceEnrollment {
   enrolledAt: string;
   nextStepAt: string | null;
   completedAt: string | null;
+  leadFirstName?: string;
+  leadLastName?: string;
+  leadEmail?: string;
+  leadCompany?: string;
 }
 
 interface SeqRow {
@@ -73,6 +78,12 @@ interface EnrollRow {
   enrolled_at: string;
   next_step_at: string | null;
   completed_at: string | null;
+  leads?: {
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    company: string | null;
+  } | null;
 }
 
 function rowToSequence(row: SeqRow): Sequence {
@@ -113,7 +124,50 @@ function rowToEnrollment(row: EnrollRow): SequenceEnrollment {
     enrolledAt: row.enrolled_at,
     nextStepAt: row.next_step_at,
     completedAt: row.completed_at,
+    leadFirstName: row.leads?.first_name ?? undefined,
+    leadLastName: row.leads?.last_name ?? undefined,
+    leadEmail: row.leads?.email ?? undefined,
+    leadCompany: row.leads?.company ?? undefined,
   };
+}
+
+async function fetchAllEnrollmentRows(sequenceId: string): Promise<EnrollRow[]> {
+  const rows: EnrollRow[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("sequence_enrollments")
+      .select("*, leads(first_name, last_name, email, company)")
+      .eq("sequence_id", sequenceId)
+      .order("enrolled_at", { ascending: false })
+      .range(from, to);
+
+    if (error || !data) break;
+    rows.push(...(data as EnrollRow[]));
+    if (data.length < SUPABASE_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchAllEnrollmentLeadIds(sequenceId: string): Promise<string[]> {
+  const leadIds: string[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("sequence_enrollments")
+      .select("lead_id")
+      .eq("sequence_id", sequenceId)
+      .range(from, to);
+
+    if (error || !data) break;
+    leadIds.push(...data.map((row) => row.lead_id));
+    if (data.length < SUPABASE_PAGE_SIZE) break;
+  }
+
+  return leadIds;
 }
 
 function getUserId(): string | null {
@@ -314,15 +368,8 @@ export const useSequenceStore = create<SequenceState>((set, get) => ({
   },
 
   fetchEnrollments: async (sequenceId) => {
-    const { data } = await supabase
-      .from("sequence_enrollments")
-      .select("*")
-      .eq("sequence_id", sequenceId)
-      .order("enrolled_at", { ascending: false });
-
-    if (data) {
-      set({ enrollments: (data as EnrollRow[]).map(rowToEnrollment) });
-    }
+    const rows = await fetchAllEnrollmentRows(sequenceId);
+    set({ enrollments: rows.map(rowToEnrollment) });
   },
 
   enrollLead: async (sequenceId, leadId) => {
@@ -332,7 +379,7 @@ export const useSequenceStore = create<SequenceState>((set, get) => ({
     const { data, error } = await supabase
       .from("sequence_enrollments")
       .insert({ sequence_id: sequenceId, lead_id: leadId, user_id: uid })
-      .select()
+      .select("*, leads(first_name, last_name, email, company)")
       .single();
 
     if (!error && data) {
@@ -364,9 +411,7 @@ export const useSequenceStore = create<SequenceState>((set, get) => ({
     const uid = getUserId();
     if (!uid || leadIds.length === 0) return;
 
-    const existingLeadIds = new Set(
-      get().enrollments.filter((e) => e.sequenceId === sequenceId).map((e) => e.leadId)
-    );
+    const existingLeadIds = new Set(await fetchAllEnrollmentLeadIds(sequenceId));
     const newLeadIds = leadIds.filter((id) => !existingLeadIds.has(id));
     if (newLeadIds.length === 0) return;
 
@@ -376,19 +421,18 @@ export const useSequenceStore = create<SequenceState>((set, get) => ({
       user_id: uid,
     }));
 
-    const { data, error } = await supabase
-      .from("sequence_enrollments")
-      .insert(rows)
-      .select();
-
-    if (!error && data) {
-      const newEnrollments = (data as EnrollRow[]).map(rowToEnrollment);
-      set((s) => ({
-        enrollments: [...newEnrollments, ...s.enrollments],
-        sequences: s.sequences.map((sq) =>
-          sq.id === sequenceId ? { ...sq, enrolledCount: (sq.enrolledCount ?? 0) + newEnrollments.length } : sq
-        ),
-      }));
+    for (const chunk of chunkArray(rows, SUPABASE_WRITE_CHUNK_SIZE)) {
+      const { error } = await supabase.from("sequence_enrollments").insert(chunk);
+      if (error) return;
     }
+
+    const allRows = await fetchAllEnrollmentRows(sequenceId);
+    const allEnrollments = allRows.map(rowToEnrollment);
+    set((s) => ({
+      enrollments: allEnrollments,
+      sequences: s.sequences.map((sq) =>
+        sq.id === sequenceId ? { ...sq, enrolledCount: allEnrollments.length } : sq
+      ),
+    }));
   },
 }));

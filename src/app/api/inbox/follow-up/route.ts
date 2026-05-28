@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { getUserId } from "@/lib/outlook";
 import { getGoogleUserId } from "@/lib/google";
 import { normalizeEmailLlmModel } from "@/lib/email-llm-models";
+import { applyUserSignatureToGeneratedBody } from "@/lib/sequence";
 
 interface TrainingRow {
   brand_voice: string;
@@ -135,7 +136,22 @@ export async function POST(req: NextRequest) {
     const parsed = JSON.parse(cleaned);
 
     const subject = parsed.subject ?? `Re: ${originalSubject}`;
-    const body = parsed.body ?? "";
+    let body = parsed.body ?? "";
+
+    const { data: sigUser } = await supabase
+      .from("users")
+      .select("email_signature, email_signature_enabled")
+      .eq("id", userId)
+      .single();
+
+    if (body.trim().length > 0) {
+      const merged = applyUserSignatureToGeneratedBody(
+        body,
+        sigUser?.email_signature ?? "",
+        sigUser?.email_signature_enabled !== false,
+      );
+      body = merged.body;
+    }
 
     return NextResponse.json({ subject, body });
   } catch (err: unknown) {

@@ -19,6 +19,7 @@ import {
   Calendar,
 } from "lucide-react";
 import clsx from "clsx";
+import { buildPreviewSrcDoc } from "@/lib/html-preview";
 
 interface PendingSequence {
   sequenceId: string;
@@ -117,7 +118,7 @@ export default function ApprovalPage() {
   const hasSent = sentEmails.length > 0 || approved.length > 0;
 
   return (
-    <div className="mx-auto max-w-[1080px] px-10 py-12">
+    <div className="mx-auto max-w-[1080px] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -140,7 +141,7 @@ export default function ApprovalPage() {
 
       {/* Stats */}
       {(hasPending || hasSent) && (
-        <div className="mb-6 grid grid-cols-3 gap-4 animate-fade-up">
+        <div className="mb-6 grid gap-3 animate-fade-up sm:grid-cols-3 sm:gap-4">
           <div className="rounded-[14px] border border-edge bg-surface px-5 py-4 shadow-xs">
             <div className="flex items-center gap-2 mb-1.5">
               <GitBranch className="h-3.5 w-3.5 text-copper" />
@@ -166,12 +167,12 @@ export default function ApprovalPage() {
       )}
 
       {/* Tabs */}
-      <div className="mb-6 flex gap-[3px] rounded-[10px] border border-edge bg-surface p-[4px] shadow-xs sm:w-fit">
+      <div className="mb-6 flex w-full gap-[3px] rounded-[10px] border border-edge bg-surface p-[4px] shadow-xs sm:w-fit">
         <button
           type="button"
           onClick={() => setTab("pending")}
           className={clsx(
-            "cursor-pointer flex items-center gap-2 rounded-[7px] px-4 py-[7px] text-[12px] font-semibold transition-all duration-150",
+            "flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[7px] px-4 py-[7px] text-[12px] font-semibold transition-all duration-150 sm:flex-none",
             tab === "pending"
               ? "bg-copper text-white shadow-xs"
               : "text-ink-mid hover:bg-cream hover:text-ink"
@@ -192,7 +193,7 @@ export default function ApprovalPage() {
           type="button"
           onClick={() => setTab("sent")}
           className={clsx(
-            "cursor-pointer flex items-center gap-2 rounded-[7px] px-4 py-[7px] text-[12px] font-semibold transition-all duration-150",
+            "flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[7px] px-4 py-[7px] text-[12px] font-semibold transition-all duration-150 sm:flex-none",
             tab === "sent"
               ? "bg-copper text-white shadow-xs"
               : "text-ink-mid hover:bg-cream hover:text-ink"
@@ -405,7 +406,10 @@ export default function ApprovalPage() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light mb-2">Body</p>
                 {selectedEmail.is_html ? (
                   <iframe
-                    srcDoc={`<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:12px;font-size:13px;line-height:1.7;color:${theme === "dark" ? "#EDE9E4" : "#2C2925"};background:${theme === "dark" ? "#1F272E" : "#ffffff"}}</style>` + selectedEmail.body}
+                    srcDoc={buildPreviewSrcDoc(
+                      `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:12px;font-size:13px;line-height:1.7;color:${theme === "dark" ? "#EDE9E4" : "#2C2925"};background:${theme === "dark" ? "#1F272E" : "#ffffff"}}</style>`,
+                      selectedEmail.body
+                    )}
                     sandbox="allow-same-origin"
                     className="w-full rounded-[10px] border border-edge bg-surface"
                     style={{ border: "1px solid var(--color-edge)", minHeight: 200 }}
