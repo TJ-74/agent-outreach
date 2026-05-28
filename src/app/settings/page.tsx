@@ -118,12 +118,11 @@ function SettingsContent() {
     : null;
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:px-6 md:px-10 md:py-10">
-      <div className="mx-auto max-w-[760px]">
+    <div className="mx-auto max-w-[760px] px-4 py-5 sm:px-6 sm:py-8 lg:py-10">
 
         {/* Toasts */}
         {justConnected && (
-          <div className="mb-6 flex items-center gap-3 rounded-[12px] border border-sage-muted bg-sage-light px-5 py-3 animate-fade-up">
+          <div className="mb-5 flex items-center gap-3 rounded-[12px] border border-sage-muted bg-sage-light px-4 py-3 animate-fade-up sm:mb-6 sm:px-5">
             <CheckCircle className="h-[18px] w-[18px] text-sage" />
             <p className="text-[13px] font-medium text-sage">
               {connectedProvider === "google" ? "Google" : "Outlook"} connected successfully!
@@ -131,30 +130,30 @@ function SettingsContent() {
           </div>
         )}
         {error && (
-          <div className="mb-6 flex items-center gap-3 rounded-[12px] border border-rose/20 bg-rose-light px-5 py-3 animate-fade-up">
+          <div className="mb-5 flex items-center gap-3 rounded-[12px] border border-rose/20 bg-rose-light px-4 py-3 animate-fade-up sm:mb-6 sm:px-5">
             <AlertCircle className="h-[18px] w-[18px] text-rose" />
             <p className="text-[13px] font-medium text-rose">{error}</p>
           </div>
         )}
 
-        {/* ════════ Profile Section ════════ */}
-        <div className="rounded-[20px] border border-edge bg-surface shadow-xs overflow-hidden animate-fade-up">
+        {/* Profile Section */}
+        <div className="overflow-hidden rounded-[16px] border border-edge bg-surface shadow-xs animate-fade-up sm:rounded-[20px]">
           {/* Banner */}
-          <div className="relative h-32 bg-gradient-to-br from-copper/15 via-copper-light to-cream-deep">
-            <div className="absolute -bottom-10 left-8 flex h-20 w-20 items-center justify-center rounded-[22px] bg-copper shadow-lg font-[family-name:var(--font-display)] text-[28px] font-bold text-white ring-4 ring-surface">
+          <div className="relative h-24 bg-gradient-to-br from-copper/15 via-copper-light to-cream-deep sm:h-32">
+            <div className="absolute -bottom-8 left-5 flex h-16 w-16 items-center justify-center rounded-[18px] bg-copper font-[family-name:var(--font-display)] text-[22px] font-bold text-white shadow-lg ring-4 ring-surface sm:-bottom-10 sm:left-8 sm:h-20 sm:w-20 sm:rounded-[22px] sm:text-[28px]">
               {initials}
             </div>
           </div>
 
           {/* Identity */}
-          <div className="px-5 pt-14 pb-6 sm:px-8 sm:pb-8">
-            <div className="mb-6 flex items-start justify-between gap-3">
-              <div>
-                <h1 className="font-[family-name:var(--font-display)] text-[22px] font-extrabold tracking-[-0.02em] text-ink">
+          <div className="px-4 pb-5 pt-12 sm:px-8 sm:pb-8 sm:pt-14">
+            <div className="mb-5 flex items-start justify-between gap-3 sm:mb-6">
+              <div className="min-w-0 flex-1">
+                <h1 className="truncate font-[family-name:var(--font-display)] text-[20px] font-extrabold tracking-[-0.02em] text-ink sm:text-[22px]">
                   {displayName}
                 </h1>
-                <p className="mt-1 text-[14px] text-ink-mid">{displayEmail}</p>
-                <div className="mt-2.5 flex items-center gap-3">
+                <p className="mt-1 truncate text-[13px] text-ink-mid sm:text-[14px]">{displayEmail}</p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 sm:gap-3">
                   {provider === "outlook" && (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-copper-light px-3 py-1 text-[11px] font-semibold text-copper">
                       <Mail className="h-3 w-3" /> Outlook
@@ -172,32 +171,32 @@ function SettingsContent() {
                   )}
                 </div>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-cream-deep">
+              <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-cream-deep sm:flex">
                 <Settings className="h-4 w-4 text-ink-light" />
               </div>
             </div>
 
             {/* Stats row */}
             {stats && (
-              <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="mb-6 grid grid-cols-2 gap-2.5 sm:mb-8 sm:grid-cols-4 sm:gap-3">
                 {[
                   { icon: Users, label: "Leads", value: stats.leads, color: "text-copper" },
                   { icon: GitBranch, label: "Sequences", value: stats.sequences, color: "text-copper" },
                   { icon: Send, label: "Sent", value: stats.sentEmails, color: "text-sage" },
                   { icon: Brain, label: "AI Profiles", value: stats.trainingProfiles, color: "text-copper" },
                 ].map((s) => (
-                  <div key={s.label} className="rounded-[12px] bg-cream/70 px-4 py-3.5 text-center">
-                    <s.icon className={`mx-auto h-4 w-4 ${s.color} mb-1.5`} />
-                    <p className="text-[20px] font-bold text-ink leading-none">{s.value}</p>
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-light">{s.label}</p>
+                  <div key={s.label} className="rounded-[12px] bg-cream/70 px-3 py-3 text-center sm:px-4 sm:py-3.5">
+                    <s.icon className={`mx-auto mb-1 h-3.5 w-3.5 sm:mb-1.5 sm:h-4 sm:w-4 ${s.color}`} />
+                    <p className="text-[18px] font-bold leading-none text-ink sm:text-[20px]">{s.value}</p>
+                    <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.06em] text-ink-light sm:text-[10px]">{s.label}</p>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Edit name */}
-            <div className="border-t border-edge pt-6">
-              <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
+            <div className="border-t border-edge pt-5 sm:pt-6">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-light">
                     Display Name
@@ -228,14 +227,14 @@ function SettingsContent() {
                   </div>
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-between">
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-[11px] text-ink-light">
                   Email is linked to your connected account.
                 </p>
                 <button
                   onClick={handleSave}
                   disabled={saving || !editName.trim() || editName.trim() === profile?.name}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-copper px-5 py-[9px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-40 disabled:cursor-default"
+                  className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-copper px-5 py-[9px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover active:scale-[0.98] disabled:cursor-default disabled:opacity-40 sm:w-auto"
                 >
                   {saving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -251,24 +250,24 @@ function SettingsContent() {
           </div>
         </div>
 
-        {/* ════════ Connections Section ════════ */}
-        <div className="mt-10 animate-fade-up" style={{ animationDelay: "60ms" }}>
-          <div className="mb-5 flex items-center gap-2.5 px-1">
+        {/* Connections Section */}
+        <div className="mt-8 animate-fade-up sm:mt-10" style={{ animationDelay: "60ms" }}>
+          <div className="mb-4 flex items-center gap-2.5 px-1 sm:mb-5">
             <div className="h-px flex-1 bg-edge" />
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-light">Email Connection</span>
             <div className="h-px flex-1 bg-edge" />
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Outlook */}
-            <div className="rounded-[16px] border border-edge bg-surface shadow-xs overflow-hidden">
-              <div className="flex items-center gap-4 px-6 py-5">
-                <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-copper-light">
+            <div className="overflow-hidden rounded-[14px] border border-edge bg-surface shadow-xs sm:rounded-[16px]">
+              <div className="flex items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-copper-light sm:h-12 sm:w-12 sm:rounded-[14px]">
                   <Mail className="h-5 w-5 text-copper" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-[15px] font-bold text-ink">Microsoft Outlook</h3>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                    <h3 className="text-[14px] font-bold text-ink sm:text-[15px]">Microsoft Outlook</h3>
                     {isOutlookConnected && (
                       <span className="rounded-full bg-sage-light px-2.5 py-[3px] text-[10px] font-semibold text-sage">Connected</span>
                     )}
@@ -276,16 +275,16 @@ function SettingsContent() {
                   <p className="mt-0.5 text-[12px] text-ink-mid">Send emails and track replies via Outlook</p>
                 </div>
               </div>
-              <div className="border-t border-edge px-6 py-4 bg-cream/20">
+              <div className="border-t border-edge bg-cream/20 px-4 py-4 sm:px-6">
                 {isOutlookLoading ? (
                   <div className="flex items-center gap-3 py-1">
                     <Loader2 className="h-4 w-4 animate-spin text-ink-light" />
                     <span className="text-[13px] text-ink-mid">Checking…</span>
                   </div>
                 ) : isOutlookConnected ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[12px] font-bold text-sage">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[12px] font-bold text-sage">
                         {outlookName ? outlookName.split(" ").map(n => n[0]).join("").slice(0, 2) : "?"}
                       </span>
                       <div className="min-w-0">
@@ -293,11 +292,11 @@ function SettingsContent() {
                         <p className="truncate text-[12px] text-ink-mid">{outlookEmail}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <a href="/api/auth/outlook" className="inline-flex cursor-pointer items-center rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:bg-surface hover:text-ink">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:shrink-0 sm:items-center">
+                      <a href="/api/auth/outlook" className="inline-flex w-full cursor-pointer items-center justify-center rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:bg-surface hover:text-ink sm:w-auto">
                         Switch account
                       </a>
-                      <button onClick={disconnectOutlook} className="inline-flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:border-rose/30 hover:bg-rose-light hover:text-rose">
+                      <button onClick={disconnectOutlook} className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:border-rose/30 hover:bg-rose-light hover:text-rose sm:w-auto">
                         <LogOut className="h-3 w-3" />
                         Disconnect
                       </button>
@@ -305,13 +304,13 @@ function SettingsContent() {
                   </div>
                 ) : isGoogleConnected ? (
                   <div className="flex items-center gap-3 py-1">
-                    <Ban className="h-4 w-4 text-ink-faint" />
+                    <Ban className="h-4 w-4 shrink-0 text-ink-faint" />
                     <p className="text-[13px] text-ink-light">Disconnect Google first to connect Outlook</p>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between py-1">
+                  <div className="flex flex-col gap-3 py-1 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-[13px] text-ink-mid">No account connected</p>
-                    <a href="/api/auth/outlook" className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-copper px-5 py-[9px] text-[12px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98]">
+                    <a href="/api/auth/outlook" className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-copper px-5 py-[9px] text-[12px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:w-auto">
                       <Mail className="h-3.5 w-3.5" />
                       Sign in with Microsoft
                     </a>
@@ -321,14 +320,14 @@ function SettingsContent() {
             </div>
 
             {/* Google */}
-            <div className="rounded-[16px] border border-edge bg-surface shadow-xs overflow-hidden">
-              <div className="flex items-center gap-4 px-6 py-5">
-                <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-sage-light">
+            <div className="overflow-hidden rounded-[14px] border border-edge bg-surface shadow-xs sm:rounded-[16px]">
+              <div className="flex items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] bg-sage-light sm:h-12 sm:w-12 sm:rounded-[14px]">
                   <Chrome className="h-5 w-5 text-sage" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-[15px] font-bold text-ink">Google Gmail</h3>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                    <h3 className="text-[14px] font-bold text-ink sm:text-[15px]">Google Gmail</h3>
                     {isGoogleConnected && (
                       <span className="rounded-full bg-sage-light px-2.5 py-[3px] text-[10px] font-semibold text-sage">Connected</span>
                     )}
@@ -336,16 +335,16 @@ function SettingsContent() {
                   <p className="mt-0.5 text-[12px] text-ink-mid">Send outreach emails with your Google account</p>
                 </div>
               </div>
-              <div className="border-t border-edge px-6 py-4 bg-cream/20">
+              <div className="border-t border-edge bg-cream/20 px-4 py-4 sm:px-6">
                 {isGoogleLoading ? (
                   <div className="flex items-center gap-3 py-1">
                     <Loader2 className="h-4 w-4 animate-spin text-ink-light" />
                     <span className="text-[13px] text-ink-mid">Checking…</span>
                   </div>
                 ) : isGoogleConnected ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[12px] font-bold text-sage">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[12px] font-bold text-sage">
                         {googleName ? googleName.split(" ").map(n => n[0]).join("").slice(0, 2) : "?"}
                       </span>
                       <div className="min-w-0">
@@ -353,11 +352,11 @@ function SettingsContent() {
                         <p className="truncate text-[12px] text-ink-mid">{googleEmail}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <a href="/api/auth/google" className="inline-flex cursor-pointer items-center rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:bg-surface hover:text-ink">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:shrink-0 sm:items-center">
+                      <a href="/api/auth/google" className="inline-flex w-full cursor-pointer items-center justify-center rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:bg-surface hover:text-ink sm:w-auto">
                         Switch account
                       </a>
-                      <button onClick={disconnectGoogle} className="inline-flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:border-rose/30 hover:bg-rose-light hover:text-rose">
+                      <button onClick={disconnectGoogle} className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-edge px-3.5 py-[7px] text-[11px] font-medium text-ink-mid transition-all hover:border-rose/30 hover:bg-rose-light hover:text-rose sm:w-auto">
                         <LogOut className="h-3 w-3" />
                         Disconnect
                       </button>
@@ -365,13 +364,13 @@ function SettingsContent() {
                   </div>
                 ) : isOutlookConnected ? (
                   <div className="flex items-center gap-3 py-1">
-                    <Ban className="h-4 w-4 text-ink-faint" />
+                    <Ban className="h-4 w-4 shrink-0 text-ink-faint" />
                     <p className="text-[13px] text-ink-light">Disconnect Outlook first to connect Google</p>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between py-1">
+                  <div className="flex flex-col gap-3 py-1 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-[13px] text-ink-mid">No account connected</p>
-                    <a href="/api/auth/google" className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-sage px-5 py-[9px] text-[12px] font-semibold text-white shadow-xs transition-all hover:opacity-90 active:scale-[0.98]">
+                    <a href="/api/auth/google" className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-sage px-5 py-[9px] text-[12px] font-semibold text-white shadow-xs transition-all hover:opacity-90 active:scale-[0.98] sm:w-auto">
                       <Chrome className="h-3.5 w-3.5" />
                       Sign in with Google
                     </a>
@@ -382,7 +381,6 @@ function SettingsContent() {
           </div>
         </div>
 
-      </div>
     </div>
   );
 }

@@ -95,7 +95,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-[calc(100dvh-7rem)] flex-col items-center justify-center gap-3 md:min-h-screen">
         <div className="flex flex-col items-center gap-3 animate-fade-up">
           <Loader2 className="h-6 w-6 animate-spin text-copper" />
           <p className="text-[13px] text-ink-mid">Loading dashboard…</p>
@@ -106,7 +106,7 @@ export default function Dashboard() {
 
   if (!data) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-[calc(100dvh-7rem)] flex-col items-center justify-center px-4 md:min-h-screen">
         <div className="flex flex-col items-center gap-4 text-center animate-fade-up">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-cream-deep">
             <Zap className="h-6 w-6 text-ink-light" />
@@ -134,68 +134,86 @@ export default function Dashboard() {
   const pipelineStatuses = ["new", "contacted", "replied", "engaged", "qualified", "won"];
   const pipelineTotal = pipelineStatuses.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0) || 1;
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const todayLabel = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+
   return (
-    <div className="min-h-screen px-4 py-8 sm:px-6 md:px-10 md:py-10">
-      <div className="mx-auto max-w-[1080px]">
+    <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
 
-        {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 animate-fade-up sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-copper/10 sm:h-9 sm:w-9 sm:rounded-[10px]">
-                <Zap className="h-4 w-4 text-copper sm:h-[18px] sm:w-[18px]" />
-              </div>
-              <h1 className="font-[family-name:var(--font-display)] text-[22px] font-extrabold tracking-[-0.03em] text-ink sm:text-[26px]">
-                Dashboard
-              </h1>
-            </div>
-            <p className="text-[13px] text-ink-mid sm:ml-12 sm:text-[14px]">
-              Your outreach pipeline at a glance.
-            </p>
-          </div>
-          <Link
-            href="/leads"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-copper px-4 py-3 text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:w-auto sm:px-5 sm:py-[9px]"
-          >
-            <UserPlus className="h-4 w-4" />
-            Add Lead
-          </Link>
-        </div>
-
-        {/* ── Stat cards ── */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-4 animate-fade-up" style={{ animationDelay: "40ms" }}>
-          {[
-            { label: "Total Leads", value: totals.leads, icon: Users, color: "text-copper", bg: "bg-copper-light", href: "/leads" },
-            { label: "Sequences", value: totals.sequences, icon: GitBranch, color: "text-copper", bg: "bg-copper-light", href: "/sequences" },
-            { label: "Emails Sent", value: totals.sentEmails, icon: Send, color: "text-sage", bg: "bg-sage-light", href: "/inbox" },
-            { label: "Pending Approval", value: totals.pendingApprovals, icon: CheckCircle, color: "text-amber", bg: "bg-amber-light", href: "/approval" },
-            { label: "Needs Action", value: totalActions, icon: MessageSquare, color: "text-rose", bg: "bg-rose-light", href: "/leads" },
-          ].map((s, i) => (
-            <Link
-              key={s.label}
-              href={s.href}
-              className="group rounded-[14px] border border-edge bg-surface p-4 shadow-xs transition-all hover:shadow-sm hover:border-edge-strong sm:rounded-[16px] sm:p-5"
-              style={{ animationDelay: `${i * 50}ms` }}
-            >
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium leading-tight text-ink-mid sm:text-[12px]">{s.label}</span>
-                <div className={`rounded-[8px] p-1.5 ${s.bg}`}>
-                  <s.icon className={`h-3.5 w-3.5 ${s.color}`} strokeWidth={2} />
+        {/* Header — greeting card; page title shown in mobile top bar */}
+        <div className="mb-5 animate-fade-up sm:mb-8">
+          <div className="rounded-[16px] border border-edge bg-surface px-4 py-4 shadow-xs sm:rounded-[18px] sm:px-7 sm:py-6">
+            <div className="flex flex-col gap-4">
+              {/* Greeting + date */}
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-copper/10 sm:h-12 sm:w-12 sm:rounded-[14px]">
+                  <Zap className="h-[18px] w-[18px] text-copper sm:h-[22px] sm:w-[22px]" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="font-[family-name:var(--font-display)] text-[18px] font-extrabold tracking-[-0.03em] text-ink sm:text-[24px]">
+                    {greeting}
+                  </h1>
+                  <p className="mt-0.5 truncate text-[11px] text-ink-light sm:text-[13px]">{todayLabel}</p>
                 </div>
               </div>
-              <p className="font-[family-name:var(--font-display)] text-[24px] font-extrabold tracking-[-0.04em] text-ink leading-none sm:text-[28px]">
-                {s.value}
-              </p>
-            </Link>
-          ))}
+
+              {/* Badges + CTA */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                {totals.pendingApprovals > 0 && (
+                  <Link
+                    href="/approval"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] border border-amber/30 bg-amber-light px-3 py-2 text-[12px] font-semibold text-amber transition-all hover:border-amber/50 hover:bg-amber/10 sm:w-auto sm:py-[7px]"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                    {totals.pendingApprovals} pending approval{totals.pendingApprovals !== 1 ? "s" : ""}
+                  </Link>
+                )}
+                {totalActions > 0 && (
+                  <Link
+                    href="/leads"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] border border-rose/25 bg-rose-light px-3 py-2 text-[12px] font-semibold text-rose transition-all hover:border-rose/40 hover:bg-rose/10 sm:w-auto sm:py-[7px]"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                    {totalActions} need{totalActions === 1 ? "s" : ""} action
+                  </Link>
+                )}
+                <Link
+                  href="/leads"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-copper px-4 py-2 text-[12px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover active:scale-[0.98] sm:w-auto sm:py-[7px]"
+                >
+                  <UserPlus className="h-3.5 w-3.5 shrink-0" />
+                  Add Lead
+                </Link>
+              </div>
+            </div>
+
+            {/* Stats row — 2 cols on mobile, 3 on tablet, 5 on desktop */}
+            <div className="mt-4 grid grid-cols-2 gap-2.5 border-t border-edge pt-4 sm:mt-5 sm:grid-cols-3 sm:gap-3 sm:pt-5 lg:grid-cols-5 lg:gap-4">
+              {[
+                { label: "Leads", value: totals.leads, href: "/leads" },
+                { label: "Sequences", value: totals.sequences, href: "/sequences" },
+                { label: "Emails Sent", value: totals.sentEmails, href: "/inbox" },
+                { label: "Enrollments", value: totals.activeEnrollments, href: "/sequences" },
+                { label: "Pending", value: totals.pendingApprovals, href: "/approval" },
+              ].map((s) => (
+                <Link key={s.label} href={s.href} className="group rounded-[10px] px-1 py-1 text-center transition-colors hover:bg-cream/60 sm:rounded-none sm:px-0 sm:py-0 sm:hover:bg-transparent">
+                  <p className="font-[family-name:var(--font-display)] text-[20px] font-extrabold tracking-[-0.04em] text-ink transition-colors group-hover:text-copper sm:text-[22px] lg:text-[26px]">
+                    {s.value}
+                  </p>
+                  <p className="mt-0.5 text-[9px] font-medium text-ink-light sm:text-[11px]">{s.label}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ── Pipeline + Sending activity ── */}
-        <div className="mt-6 grid grid-cols-1 gap-4 lg:mt-8 lg:grid-cols-[1fr_1fr] lg:gap-5 animate-fade-up" style={{ animationDelay: "100ms" }}>
+        <div className="grid grid-cols-1 gap-4 animate-fade-up lg:grid-cols-2 lg:gap-5" style={{ animationDelay: "100ms" }}>
 
           {/* Pipeline */}
-          <div className="rounded-[16px] border border-edge bg-surface p-4 shadow-xs sm:p-6">
-            <div className="flex items-center justify-between mb-5">
+          <div className="rounded-[14px] border border-edge bg-surface p-4 shadow-xs sm:rounded-[16px] sm:p-6">
+            <div className="mb-4 flex items-center justify-between sm:mb-5">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-copper" />
                 <h2 className="text-[14px] font-bold text-ink">Lead Pipeline</h2>
@@ -232,7 +250,7 @@ export default function Dashboard() {
             </div>
 
             {/* Legend */}
-            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-3 sm:gap-x-4">
               {pipelineStatuses.map((s) => {
                 const count = statusCounts[s] ?? 0;
                 const meta = STATUS_META[s];
@@ -250,9 +268,9 @@ export default function Dashboard() {
 
             {/* Action needed */}
             {totalActions > 0 && (
-              <div className="mt-5 border-t border-edge pt-4">
+              <div className="mt-4 border-t border-edge pt-4 sm:mt-5">
                 <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Action Needed</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   {actionCounts.needs_reply ? (
                     <div className="flex items-center gap-1.5 rounded-full bg-amber-light px-3 py-1">
                       <MessageSquare className="h-3 w-3 text-amber" />
@@ -277,8 +295,8 @@ export default function Dashboard() {
           </div>
 
           {/* Sending activity chart */}
-          <div className="rounded-[16px] border border-edge bg-surface p-4 shadow-xs sm:p-6">
-            <div className="flex items-center justify-between mb-5">
+          <div className="rounded-[14px] border border-edge bg-surface p-4 shadow-xs sm:rounded-[16px] sm:p-6">
+            <div className="mb-4 flex items-center justify-between sm:mb-5">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-sage" />
                 <h2 className="text-[14px] font-bold text-ink">Emails Sent</h2>
@@ -287,9 +305,9 @@ export default function Dashboard() {
             </div>
 
             {/* Bar chart */}
-            <div className="flex items-end gap-2 sm:gap-3" style={{ height: 140 }}>
+            <div className="flex items-end gap-1.5 sm:gap-3" style={{ height: 120 }}>
               {dailySent.map((d) => {
-                const barHeight = d.count > 0 ? Math.max((d.count / maxDailySent) * 110, 6) : 3;
+                const barHeight = d.count > 0 ? Math.max((d.count / maxDailySent) * 90, 6) : 3;
                 const isToday = d.date === new Date().toISOString().slice(0, 10);
                 return (
                   <div key={d.date} className="flex flex-1 flex-col items-center justify-end" style={{ height: "100%" }}>
@@ -297,12 +315,12 @@ export default function Dashboard() {
                       <span className="mb-1.5 text-[11px] font-bold text-ink">{d.count}</span>
                     )}
                     <div
-                      className={`w-full max-w-[40px] rounded-t-[8px] ${
+                      className={`w-full max-w-[32px] rounded-t-[6px] sm:max-w-[40px] sm:rounded-t-[8px] ${
                         isToday ? "bg-copper" : d.count > 0 ? "bg-sage/40" : "bg-edge"
                       }`}
                       style={{ height: barHeight }}
                     />
-                    <span className={`mt-2 text-[11px] ${isToday ? "font-bold text-copper" : "font-medium text-ink-light"}`}>
+                    <span className={`mt-1.5 text-[10px] sm:mt-2 sm:text-[11px] ${isToday ? "font-bold text-copper" : "font-medium text-ink-light"}`}>
                       {shortDay(d.date)}
                     </span>
                   </div>
@@ -320,7 +338,7 @@ export default function Dashboard() {
 
             {/* Sequence breakdown */}
             {(seqStatusCounts.active || seqStatusCounts.completed) && (
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
                 {seqStatusCounts.active ? (
                   <div className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-sage" />
@@ -339,11 +357,11 @@ export default function Dashboard() {
         </div>
 
         {/* ── Recent sent + Recent leads ── */}
-        <div className="mt-6 grid grid-cols-1 gap-4 lg:mt-8 lg:grid-cols-[1.2fr_1fr] lg:gap-5 animate-fade-up" style={{ animationDelay: "140ms" }}>
+        <div className="mt-5 grid grid-cols-1 gap-4 animate-fade-up lg:mt-8 lg:grid-cols-[1.2fr_1fr] lg:gap-5" style={{ animationDelay: "140ms" }}>
 
           {/* Recent sent emails */}
-          <div className="rounded-[16px] border border-edge bg-surface shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between border-b border-edge px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="overflow-hidden rounded-[14px] border border-edge bg-surface shadow-xs sm:rounded-[16px]">
+            <div className="flex items-center justify-between border-b border-edge px-4 py-3 sm:px-6 sm:py-4">
               <div className="flex items-center gap-2">
                 <Send className="h-4 w-4 text-sage" />
                 <h2 className="text-[14px] font-bold text-ink">Recent Emails</h2>
@@ -355,25 +373,31 @@ export default function Dashboard() {
             {recentSent.length > 0 ? (
               <div className="divide-y divide-edge">
                 {recentSent.map((e) => (
-                  <div key={e.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-cream/40 sm:px-6 sm:py-3.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sage-light">
-                      <Mail className="h-4 w-4 text-sage" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-[13px] font-semibold text-ink">{e.lead_name}</p>
-                        {e.company && (
-                          <span className="hidden shrink-0 items-center gap-1 text-[10px] text-ink-light sm:inline-flex">
-                            <Building2 className="h-2.5 w-2.5" />
-                            {e.company}
-                          </span>
-                        )}
+                  <div key={e.id} className="px-4 py-3 transition-colors hover:bg-cream/40 sm:px-6 sm:py-3.5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sage-light">
+                        <Mail className="h-4 w-4 text-sage" />
                       </div>
-                      <p className="truncate text-[12px] text-ink-mid">{e.subject || "(No subject)"}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[10px] text-ink-light">{timeAgo(e.sent_at)}</p>
-                      <p className="mt-0.5 truncate max-w-[100px] text-[9px] text-ink-faint">{e.sequence_name}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate text-[13px] font-semibold text-ink">{e.lead_name}</p>
+                          <p className="shrink-0 text-[10px] text-ink-light sm:hidden">{timeAgo(e.sent_at)}</p>
+                        </div>
+                        <p className="truncate text-[12px] text-ink-mid">{e.subject || "(No subject)"}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {e.company && (
+                            <span className="inline-flex max-w-full items-center gap-1 text-[10px] text-ink-light">
+                              <Building2 className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate">{e.company}</span>
+                            </span>
+                          )}
+                          <span className="truncate text-[10px] text-ink-faint sm:hidden">{e.sequence_name}</span>
+                        </div>
+                      </div>
+                      <div className="hidden shrink-0 text-right sm:block">
+                        <p className="text-[10px] text-ink-light">{timeAgo(e.sent_at)}</p>
+                        <p className="mt-0.5 max-w-[100px] truncate text-[9px] text-ink-faint">{e.sequence_name}</p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -390,8 +414,8 @@ export default function Dashboard() {
           </div>
 
           {/* Recent leads */}
-          <div className="rounded-[16px] border border-edge bg-surface shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between border-b border-edge px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="overflow-hidden rounded-[14px] border border-edge bg-surface shadow-xs sm:rounded-[16px]">
+            <div className="flex items-center justify-between border-b border-edge px-4 py-3 sm:px-6 sm:py-4">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-copper" />
                 <h2 className="text-[14px] font-bold text-ink">Recent Leads</h2>
@@ -406,21 +430,29 @@ export default function Dashboard() {
                   const name = `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim() || l.email;
                   const meta = STATUS_META[l.status] ?? STATUS_META.new;
                   return (
-                    <div key={l.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-cream/40 sm:px-6 sm:py-3.5">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-copper-light font-[family-name:var(--font-display)] text-[11px] font-bold text-copper">
-                        {name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-semibold text-ink">{name}</p>
-                        <p className="truncate text-[12px] text-ink-mid">
-                          {l.company ?? l.email}
-                        </p>
-                      </div>
-                      <div className="shrink-0 flex flex-col items-end gap-1">
-                        <span className={`inline-block rounded-full px-2 py-[2px] text-[9px] font-bold uppercase ${meta.bg} ${meta.color}`}>
-                          {meta.label}
-                        </span>
-                        <span className="text-[10px] text-ink-light">{timeAgo(l.created_at)}</span>
+                    <div key={l.id} className="px-4 py-3 transition-colors hover:bg-cream/40 sm:px-6 sm:py-3.5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-copper-light font-[family-name:var(--font-display)] text-[11px] font-bold text-copper">
+                          {name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate text-[13px] font-semibold text-ink">{name}</p>
+                            <span className={`shrink-0 rounded-full px-2 py-[2px] text-[9px] font-bold uppercase sm:hidden ${meta.bg} ${meta.color}`}>
+                              {meta.label}
+                            </span>
+                          </div>
+                          <p className="truncate text-[12px] text-ink-mid">
+                            {l.company ?? l.email}
+                          </p>
+                          <p className="mt-1 text-[10px] text-ink-light sm:hidden">{timeAgo(l.created_at)}</p>
+                        </div>
+                        <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
+                          <span className={`inline-block rounded-full px-2 py-[2px] text-[9px] font-bold uppercase ${meta.bg} ${meta.color}`}>
+                            {meta.label}
+                          </span>
+                          <span className="text-[10px] text-ink-light">{timeAgo(l.created_at)}</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -439,10 +471,10 @@ export default function Dashboard() {
         </div>
 
         {/* ── Quick actions ── */}
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:mt-8 lg:gap-4 animate-fade-up" style={{ animationDelay: "180ms" }}>
+        <div className="mt-5 grid grid-cols-1 gap-2.5 animate-fade-up sm:grid-cols-3 sm:gap-3 lg:mt-8 lg:gap-4" style={{ animationDelay: "180ms" }}>
           <Link
             href="/leads"
-            className="group flex min-h-[64px] items-center justify-between rounded-[14px] border border-edge bg-surface px-4 py-3.5 shadow-xs transition-all hover:border-copper-muted hover:shadow-sm sm:px-5 sm:py-4"
+            className="group flex min-h-[56px] items-center justify-between rounded-[12px] border border-edge bg-surface px-4 py-3 shadow-xs transition-all hover:border-copper-muted hover:shadow-sm sm:min-h-[64px] sm:rounded-[14px] sm:px-5 sm:py-4"
           >
             <div className="flex items-center gap-3">
               <div className="rounded-[8px] bg-copper-light p-2.5">
@@ -458,7 +490,7 @@ export default function Dashboard() {
 
           <Link
             href="/sequences"
-            className="group flex min-h-[64px] items-center justify-between rounded-[14px] border border-edge bg-surface px-4 py-3.5 shadow-xs transition-all hover:border-sage-muted hover:shadow-sm sm:px-5 sm:py-4"
+            className="group flex min-h-[56px] items-center justify-between rounded-[12px] border border-edge bg-surface px-4 py-3 shadow-xs transition-all hover:border-sage-muted hover:shadow-sm sm:min-h-[64px] sm:rounded-[14px] sm:px-5 sm:py-4"
           >
             <div className="flex items-center gap-3">
               <div className="rounded-[8px] bg-sage-light p-2.5">
@@ -474,7 +506,7 @@ export default function Dashboard() {
 
           <Link
             href="/approval"
-            className="group flex min-h-[64px] items-center justify-between rounded-[14px] border border-edge bg-surface px-4 py-3.5 shadow-xs transition-all hover:border-amber/20 hover:shadow-sm sm:px-5 sm:py-4"
+            className="group flex min-h-[56px] items-center justify-between rounded-[12px] border border-edge bg-surface px-4 py-3 shadow-xs transition-all hover:border-amber/20 hover:shadow-sm sm:min-h-[64px] sm:rounded-[14px] sm:px-5 sm:py-4"
           >
             <div className="flex items-center gap-3">
               <div className="rounded-[8px] bg-amber-light p-2.5">
@@ -491,7 +523,6 @@ export default function Dashboard() {
           </Link>
         </div>
 
-      </div>
     </div>
   );
 }

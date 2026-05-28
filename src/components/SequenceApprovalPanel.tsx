@@ -76,6 +76,10 @@ function normalizeLinkedInUrl(url: string): string {
   return `https://${t.replace(/^\/+/, "")}`;
 }
 
+function initials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+}
+
 function iframeStyle(dark: boolean) {
   const color = dark ? "#EDE9E4" : "#2C2925";
   const bg = dark ? "#1F272E" : "#ffffff";
@@ -211,6 +215,7 @@ export default function SequenceApprovalPanel({
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [animDir, setAnimDir] = useState<"left" | "right" | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Per-lead overrides (edited subject/body before sending)
   const [edits, setEdits] = useState<Record<string, { subject: string; body: string }>>({});
@@ -235,13 +240,25 @@ export default function SequenceApprovalPanel({
   const [savedSigEnabled, setSavedSigEnabled] = useState(true);
   const [sigModalOpen, setSigModalOpen] = useState(false);
   const [modelDropOpen, setModelDropOpen] = useState(false);
+  const [mobileShowList, setMobileShowList] = useState(false);
   const modelDropRef = useRef<HTMLDivElement>(null);
+  const pendingPageEntryRef = useRef<"first" | "last" | null>(null);
 
   useEffect(() => {
-    setIndex(0);
     setContentTab("email");
-    contentRef.current?.scrollTo({ top: 0 });
+    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [page]);
+
+  useEffect(() => {
+    if (previews.length === 0) return;
+    if (pendingPageEntryRef.current === "last") {
+      setIndex(previews.length - 1);
+      pendingPageEntryRef.current = null;
+    } else if (pendingPageEntryRef.current === "first") {
+      setIndex(0);
+      pendingPageEntryRef.current = null;
+    }
+  }, [page, previews]);
   const sigModalOpenRef = useRef(false);
   sigModalOpenRef.current = sigModalOpen;
   const [sigSaving, setSigSaving] = useState(false);
@@ -419,6 +436,7 @@ export default function SequenceApprovalPanel({
       setAnimDir(newIndex > index ? "left" : "right");
       setIndex(newIndex);
       setContentTab("email");
+      setMobileShowList(false);
       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     },
     [index, previews.length]
@@ -430,6 +448,8 @@ export default function SequenceApprovalPanel({
       return;
     }
     if (hasNextPage && onPageChange && !loadingPage) {
+      pendingPageEntryRef.current = "first";
+      setMobileShowList(false);
       onPageChange(page + 1);
     }
   }, [hasNextPage, index, loadingPage, navigateTo, onPageChange, page, previews.length]);
@@ -439,6 +459,8 @@ export default function SequenceApprovalPanel({
       return;
     }
     if (hasPrevPage && onPageChange && !loadingPage) {
+      pendingPageEntryRef.current = "last";
+      setMobileShowList(false);
       onPageChange(page - 1);
     }
   }, [hasPrevPage, index, loadingPage, navigateTo, onPageChange, page]);
@@ -856,6 +878,28 @@ export default function SequenceApprovalPanel({
     ? (leadResearch[current.leadId] || current.research || "")
     : "";
 
+  const handleSwipeTouchStart = useCallback((e: React.TouchEvent) => {
+    swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, []);
+
+  const handleSwipeTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const start = swipeStartRef.current;
+      swipeStartRef.current = null;
+      if (!start || allDone || !current || editingId || rewritingId) return;
+
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+
+      if (dx < 0) goNext();
+      else goPrev();
+    },
+    [allDone, current, editingId, goNext, goPrev, rewritingId],
+  );
+
   const stateIcon = (enrollmentId: string) => {
     const s = cardStates[enrollmentId];
     if (s === "approved") return <Check className="h-3 w-3 text-white" />;
@@ -877,25 +921,26 @@ export default function SequenceApprovalPanel({
     <div
       className={
         standalone
-          ? "flex h-screen w-full bg-cream"
-          : "relative z-10 flex h-full max-h-[92vh] w-full max-w-[960px] rounded-[16px] bg-cream shadow-lg overflow-hidden mx-4 my-auto"
+          ? "flex h-full w-full overflow-hidden bg-cream"
+          : "relative z-10 flex h-full max-h-[92vh] w-full max-w-[960px] overflow-hidden rounded-[16px] bg-cream shadow-lg mx-4 my-auto"
       }
     >
       {/* ── Left sidebar: lead list ── */}
-      <div className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-edge bg-surface">
+      <div className={`${mobileShowList ? "flex flex-1" : "hidden md:flex"} min-h-0 shrink-0 flex-col border-r border-edge bg-surface md:w-[260px]`}>
         {/* Sidebar header */}
-        <div className="flex items-center gap-2 border-b border-edge px-4 py-3.5">
+        <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b border-edge bg-surface px-4 py-4 md:static md:gap-2 md:py-3.5">
           <button
             onClick={onClose}
-            className="cursor-pointer rounded-[7px] p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid"
+            className="cursor-pointer shrink-0 rounded-full p-1.5 text-ink-mid transition-colors hover:bg-cream md:rounded-[7px]"
             title="Back"
+            aria-label="Back to approvals"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold text-ink">{sequenceName}</p>
-            <p className="text-[10px] text-ink-light">
-              Page {page} of {totalPages} · {totalAvailable} leads
+            <p className="truncate text-[14px] font-bold text-ink md:text-[13px] md:font-semibold">{sequenceName}</p>
+            <p className="text-[11px] text-ink-light md:text-[10px]">
+              {totalDone}/{previews.length} reviewed · Page {page}/{totalPages}
             </p>
           </div>
         </div>
@@ -948,10 +993,10 @@ export default function SequenceApprovalPanel({
                 <button
                   key={p.enrollmentId}
                   onClick={() => navigateTo(globalIdx)}
-                  className={`cursor-pointer flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-all ${
+                  className={`cursor-pointer flex w-full items-center gap-2.5 border-b border-edge/50 px-4 py-3 text-left transition-all md:py-2.5 ${
                     active
-                      ? "bg-copper-light/60 border-l-[3px] border-copper"
-                      : "border-l-[3px] border-transparent hover:bg-cream/70"
+                      ? "border-l-[3px] border-l-sage bg-sage-light/60 md:border-copper md:bg-copper-light/60 md:border-l-copper"
+                      : "border-l-[3px] border-l-transparent hover:bg-cream/70"
                   }`}
                 >
                   <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${stateBg(p.enrollmentId)}`}>
@@ -1028,11 +1073,15 @@ export default function SequenceApprovalPanel({
           })()}
         </div>
 
-        {/* Keyboard hint */}
-        <div className="border-t border-edge px-4 py-2.5">
-          <div className="mb-2.5 flex items-center justify-between gap-2">
+        {/* Page navigation */}
+        <div className="shrink-0 border-t border-edge px-4 py-2.5">
+          <div className="flex items-center justify-between gap-2">
             <button
-              onClick={() => onPageChange?.(page - 1)}
+              onClick={() => {
+                if (!onPageChange || !hasPrevPage || loadingPage) return;
+                pendingPageEntryRef.current = "first";
+                onPageChange(page - 1);
+              }}
               disabled={!onPageChange || !hasPrevPage || loadingPage}
               className="cursor-pointer rounded-[8px] border border-edge px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-35"
             >
@@ -1042,7 +1091,11 @@ export default function SequenceApprovalPanel({
               {loadingPage ? "Loading..." : `${page}/${totalPages}`}
             </span>
             <button
-              onClick={() => onPageChange?.(page + 1)}
+              onClick={() => {
+                if (!onPageChange || !hasNextPage || loadingPage) return;
+                pendingPageEntryRef.current = "first";
+                onPageChange(page + 1);
+              }}
               disabled={!onPageChange || !hasNextPage || loadingPage}
               className="cursor-pointer rounded-[8px] border border-edge px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream disabled:cursor-not-allowed disabled:opacity-35"
             >
@@ -1051,13 +1104,13 @@ export default function SequenceApprovalPanel({
           </div>
           <button
             onClick={() => setShowShortcuts((s) => !s)}
-            className="cursor-pointer flex items-center gap-1.5 text-[10px] text-ink-light hover:text-ink-mid transition-colors"
+            className="mt-2 hidden cursor-pointer items-center gap-1.5 text-[10px] text-ink-light hover:text-ink-mid transition-colors md:flex"
           >
             <Keyboard className="h-3 w-3" />
             Keyboard shortcuts
           </button>
           {showShortcuts && (
-            <div className="mt-2 space-y-1 text-[10px] text-ink-mid">
+            <div className="mt-2 hidden space-y-1 text-[10px] text-ink-mid md:block">
               <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+A</kbd> Approve & send</p>
               <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+D</kbd> Decline</p>
               <p><kbd className="rounded bg-cream px-1 py-0.5 font-mono text-[9px]">Ctrl+G</kbd> AI rewrite</p>
@@ -1070,9 +1123,101 @@ export default function SequenceApprovalPanel({
       </div>
 
       {/* ── Main content area ── */}
-      <div className="flex flex-1 flex-col min-w-0">
-        {/* Mobile header (shown on small screens) */}
-        <div className="sticky top-0 z-40 flex items-center justify-between border-b border-edge bg-surface px-4 py-3 md:hidden">
+      <div className={`${mobileShowList ? "hidden md:flex" : "flex"} flex-1 flex-col min-w-0`}>
+        {/* Mobile chat-style header */}
+        {current && !allDone && (
+          <div className="md:hidden sticky top-0 z-30 flex items-center gap-2.5 border-b border-edge bg-surface/95 backdrop-blur-sm px-3 py-4 shadow-xs">
+            <button
+              onClick={() => setMobileShowList(true)}
+              className="cursor-pointer shrink-0 rounded-full p-1.5 text-ink-mid transition-colors hover:bg-cream"
+              aria-label="Back to lead list"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[11px] font-bold text-sage">
+              {initials(current.leadName)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="truncate text-[13px] font-semibold text-ink leading-tight">{current.leadName}</p>
+              <p className="truncate text-[11px] text-ink-mid leading-tight">
+                {current.company || current.email} · {currentPosition}/{totalAvailable}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {current.linkedIn?.trim() && (
+                <a
+                  href={normalizeLinkedInUrl(current.linkedIn)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-copper"
+                  aria-label="LinkedIn profile"
+                >
+                  <Linkedin className="h-4 w-4" />
+                </a>
+              )}
+              <div ref={modelDropRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setModelDropOpen((o) => !o)}
+                  className={`cursor-pointer rounded-full p-1.5 transition-colors ${
+                    modelDropOpen ? "bg-copper-light text-copper" : "text-ink-light hover:bg-cream hover:text-copper"
+                  }`}
+                  aria-label="AI model"
+                >
+                  <Cpu className="h-4 w-4" />
+                </button>
+                {modelDropOpen && (
+                  <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[220px] overflow-hidden rounded-[12px] border border-edge bg-surface shadow-lg">
+                    <div className="border-b border-edge px-3 py-2">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-light">AI Model</p>
+                    </div>
+                    <div className="p-1.5">
+                      {EMAIL_LLM_MODELS.map((m) => {
+                        const active = emailLlmModel === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => { setEmailLlmModel(m.id); setModelDropOpen(false); }}
+                            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] px-3 py-2 text-left transition-colors ${
+                              active ? "bg-copper-light/60 text-copper" : "text-ink-mid hover:bg-cream hover:text-ink"
+                            }`}
+                          >
+                            <p className="text-[12px] font-semibold">{m.label}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {userId && (
+                <button
+                  type="button"
+                  onClick={() => { setSigSaveError(null); setSigModalOpen(true); }}
+                  className="relative cursor-pointer rounded-full p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-copper"
+                  aria-label="Email signature"
+                >
+                  <FileSignature className="h-4 w-4" />
+                  {sigDirty && (
+                    <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber ring-2 ring-surface" />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={startEdit}
+                disabled={currentState === "approved" || currentState === "declined" || hasAiDraft || editingId === current.enrollmentId}
+                className="cursor-pointer rounded-full p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-copper disabled:opacity-30"
+                aria-label="Edit email"
+              >
+                <PenLine className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Desktop-only top bar (sequence context) */}
+        <div className="hidden items-center justify-between border-b border-edge bg-surface px-4 py-3 md:flex">
           <button onClick={onClose} className="cursor-pointer rounded-[7px] p-1.5 text-ink-light hover:bg-cream hover:text-ink-mid">
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -1082,18 +1227,21 @@ export default function SequenceApprovalPanel({
               Page {page}/{totalPages} · {totalDone}/{previews.length} reviewed
             </p>
           </div>
-          <button onClick={onClose} className="cursor-pointer rounded-[7px] p-1.5 text-ink-light hover:bg-cream hover:text-ink-mid">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="w-8" />
         </div>
 
         {/* Mobile progress bar */}
-        <div className="sticky top-[53px] z-40 h-[3px] bg-cream-deep md:hidden">
+        <div className="h-[3px] bg-cream-deep md:hidden">
           <div className="h-full bg-copper transition-all duration-500" style={{ width: `${progressPct}%` }} />
         </div>
 
         {/* Content */}
-        <div ref={contentRef} className="flex-1 overflow-y-auto">
+        <div
+          ref={contentRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
+          onTouchStart={handleSwipeTouchStart}
+          onTouchEnd={handleSwipeTouchEnd}
+        >
           {allDone ? (
             /* ── Completion screen ── */
             <div className="flex flex-col items-center justify-center px-8 py-20 text-center animate-scale-up">
@@ -1151,7 +1299,7 @@ export default function SequenceApprovalPanel({
             /* ── Email preview ── */
             <div
               key={current.enrollmentId}
-              className={`p-5 md:p-7 ${
+              className={`p-4 md:p-7 ${
                 animDir === "left"
                   ? "animate-slide-in-left"
                   : animDir === "right"
@@ -1159,8 +1307,8 @@ export default function SequenceApprovalPanel({
                   : "animate-fade-up"
               }`}
             >
-              {/* Recipient bar */}
-              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              {/* Recipient bar — desktop only; mobile uses sticky chat header */}
+              <div className="mb-4 hidden md:flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-copper-light">
                     <User className="h-4.5 w-4.5 text-copper" />
@@ -1413,7 +1561,7 @@ export default function SequenceApprovalPanel({
               <div className="mb-4 flex items-center gap-1 rounded-[10px] bg-cream-deep/60 p-1">
                 <button
                   onClick={() => setContentTab("email")}
-                  className={`cursor-pointer flex items-center gap-1.5 rounded-[8px] px-3.5 py-2 text-[12px] font-semibold transition-all ${
+                  className={`cursor-pointer flex flex-1 items-center justify-center gap-1.5 rounded-[8px] px-4 py-2 text-[12px] font-semibold transition-all md:flex-none ${
                     contentTab === "email"
                       ? "bg-surface text-ink shadow-xs"
                       : "text-ink-mid hover:text-ink"
@@ -1424,7 +1572,7 @@ export default function SequenceApprovalPanel({
                 </button>
                 <button
                   onClick={() => setContentTab("research")}
-                  className={`cursor-pointer flex items-center gap-1.5 rounded-[8px] px-3.5 py-2 text-[12px] font-semibold transition-all ${
+                  className={`cursor-pointer flex flex-1 items-center justify-center gap-1.5 rounded-[8px] px-4 py-2 text-[12px] font-semibold transition-all md:flex-none ${
                     contentTab === "research"
                       ? "bg-surface text-ink shadow-xs"
                       : "text-ink-mid hover:text-ink"
@@ -1534,29 +1682,45 @@ export default function SequenceApprovalPanel({
                 /* ── Email tab ── */
                 <>
               {/* Email card */}
-              <div className={`rounded-[14px] border bg-surface shadow-xs overflow-hidden transition-colors ${
-                hasAiDraft ? "border-copper/40 ring-[3px] ring-copper/10" : editingId === current.enrollmentId ? "border-copper/40 ring-[3px] ring-copper/10" : "border-edge"
+              <div className={`overflow-hidden rounded-[16px] border shadow-xs transition-colors ${
+                hasAiDraft ? "border-copper/40 ring-[3px] ring-copper/10 bg-surface" : editingId === current.enrollmentId ? "border-copper/40 ring-[3px] ring-copper/10 bg-surface" : "border-edge bg-surface"
               }`}>
-                {/* Subject bar */}
-                <div className="flex flex-col gap-2 border-b border-edge px-4 py-3 sm:flex-row sm:items-center sm:px-5">
-                  <Mail className="h-4 w-4 shrink-0 text-ink-light" />
-                  {rewritingId === current.enrollmentId && !hasAiDraft ? (
-                    <SkeletonLine className="h-4 w-2/5 flex-1" />
-                  ) : editingId === current.enrollmentId || hasAiDraft ? (
-                    <input
-                      autoFocus={editingId === current.enrollmentId}
-                      value={hasAiDraft ? draftSubject : draftSubject}
-                      onChange={(e) => setDraftSubject(e.target.value)}
-                      placeholder="Subject…"
-                      className="flex-1 bg-transparent text-[14px] font-semibold text-ink outline-none placeholder:text-ink-faint"
-                    />
-                  ) : (
-                    <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">
-                      {(edits[current.enrollmentId]?.subject ?? current.subject) || "(No subject)"}
-                    </p>
-                  )}
-                  {/* Edit / Done / Reset / AI draft buttons */}
-                  <div className="flex shrink-0 flex-wrap items-center gap-1 sm:ml-auto">
+                {/* Card header */}
+                <div className="border-b border-edge/70 px-4 py-3 sm:px-5">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-sage-light text-sage">
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {rewritingId === current.enrollmentId && !hasAiDraft ? (
+                        <SkeletonLine className="h-4 w-2/5" />
+                      ) : editingId === current.enrollmentId || hasAiDraft ? (
+                        <input
+                          autoFocus={editingId === current.enrollmentId}
+                          value={draftSubject}
+                          onChange={(e) => setDraftSubject(e.target.value)}
+                          placeholder="Subject…"
+                          className="w-full bg-transparent text-[13px] font-semibold text-ink outline-none placeholder:text-ink-faint"
+                        />
+                      ) : (
+                        <p className="truncate text-[13px] font-semibold text-ink">
+                          {(edits[current.enrollmentId]?.subject ?? current.subject) || "(No subject)"}
+                        </p>
+                      )}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="rounded-full bg-sage-light px-2 py-[2px] text-[10px] font-semibold text-sage">
+                          Outbound draft
+                        </span>
+                        {trainingProfileName && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-copper-light px-2 py-[2px] text-[10px] font-semibold text-copper">
+                            <BrainCircuit className="h-2.5 w-2.5" />
+                            {trainingProfileName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Edit / Done / Reset / AI draft buttons — desktop only */}
+                    <div className="hidden shrink-0 flex-wrap items-center gap-1 sm:ml-auto md:flex">
                     {hasAiDraft ? (
                       <>
                         <span className="rounded-full bg-copper-light px-2.5 py-[2px] text-[9px] font-bold uppercase text-copper flex items-center gap-1 mr-1">
@@ -1640,12 +1804,13 @@ export default function SequenceApprovalPanel({
                       </>
                     )}
                   </div>
+                  </div>
                 </div>
 
                 {/* To field */}
-                <div className="flex min-w-0 items-center gap-2 border-b border-edge/60 px-4 py-2 sm:px-5">
-                  <span className="text-[11px] font-medium text-ink-light">To:</span>
-                  <span className="rounded-full bg-cream px-2.5 py-[2px] text-[11px] font-medium text-ink-mid">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-edge/50 bg-cream/35 px-4 py-2 sm:px-5">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-light">To</span>
+                  <span className="min-w-0 truncate rounded-full bg-surface px-2.5 py-[2px] text-[11px] font-medium text-ink-mid">
                     {current.email}
                   </span>
                 </div>
@@ -1712,58 +1877,77 @@ export default function SequenceApprovalPanel({
 
         {/* ── Footer action bar ── */}
         {!allDone && current && (
-          <div className="border-t border-edge bg-surface px-4 py-3 md:px-7 md:py-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              {/* Navigation */}
-              <div className="flex items-center justify-between gap-1.5 md:justify-start">
+          <div className="shrink-0 border-t border-edge bg-surface px-3 py-2 md:px-7 md:py-3">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              {/* Navigation — prev/next pinned left & right */}
+              <div className="flex w-full items-center justify-between gap-3 md:w-auto md:min-w-[220px] md:justify-start md:gap-2">
                 <button
                   onClick={goPrev}
                   disabled={loadingPage || (index === 0 && !hasPrevPage)}
-                  className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-[9px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:opacity-30"
+                  className="cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:opacity-30 md:h-9 md:w-9 md:rounded-[9px]"
+                  aria-label="Previous lead"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
+                <span className="text-center text-[11px] font-medium text-ink-light">
+                  {currentPosition}/{totalAvailable}
+                  {totalPages > 1 ? ` · ${page}/${totalPages}` : ""}
+                </span>
                 <button
                   onClick={goNext}
                   disabled={loadingPage || (index >= previews.length - 1 && !hasNextPage)}
-                  className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-[9px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:opacity-30"
+                  className="cursor-pointer flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:opacity-30 md:h-9 md:w-9 md:rounded-[9px]"
+                  aria-label="Next lead"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
-                <span className="ml-2 hidden md:inline text-[11px] text-ink-light">
-                  Page {page}/{totalPages} · {totalDone} of {previews.length} reviewed
-                </span>
               </div>
 
               {/* Actions */}
-              <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:gap-2.5">
-                {hasAiDraft ? (
+              <div className="grid grid-cols-2 gap-1.5 md:flex md:items-center md:gap-2">
+                {editingId === current.enrollmentId && !hasAiDraft ? (
+                  <>
+                    <button
+                      onClick={cancelEdit}
+                      className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] border border-edge px-3 py-[7px] text-[12px] font-semibold text-ink-mid transition-all hover:bg-cream md:px-4"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveEdit}
+                      className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] bg-copper px-3 py-[7px] text-[12px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover md:px-4"
+                    >
+                      <Check className="h-4 w-4" />
+                      Save
+                    </button>
+                  </>
+                ) : hasAiDraft ? (
                   <>
                     <button
                       onClick={rejectAiDraft}
-                      className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-edge px-3 py-2.5 text-[13px] font-semibold text-ink-mid transition-all hover:border-rose/30 hover:bg-rose-light hover:text-rose active:scale-[0.98] md:px-4 md:py-2"
+                      className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] border border-edge px-3 py-[7px] text-[12px] font-semibold text-ink-mid transition-all hover:border-rose/30 hover:bg-rose-light hover:text-rose disabled:opacity-40 md:px-4"
                     >
-                      <XCircle className="h-4 w-4" />
+                      <XCircle className="h-3.5 w-3.5" />
                       Reject
                     </button>
                     <button
                       onClick={handleRedoEmail}
                       disabled={rewritingId === current.enrollmentId}
-                      className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-edge px-3 py-2.5 text-[13px] font-semibold text-ink-mid transition-all hover:border-copper/30 hover:bg-copper-light hover:text-copper active:scale-[0.98] disabled:opacity-40 md:px-4 md:py-2"
+                      className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] border border-edge px-3 py-[7px] text-[12px] font-semibold text-ink-mid transition-all hover:border-copper/30 hover:bg-copper-light hover:text-copper disabled:opacity-40 md:px-4"
                     >
                       {rewritingId === current.enrollmentId ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <RefreshCw className="h-4 w-4" />
+                        <RefreshCw className="h-3.5 w-3.5" />
                       )}
                       Redo
                     </button>
                     <button
                       onClick={acceptAiDraft}
                       disabled={rewritingId === current.enrollmentId}
-                      className="col-span-2 inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-copper px-5 py-2.5 text-[13px] font-semibold text-white shadow-xs shadow-copper transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-40 md:col-span-1 md:py-2"
+                      className="col-span-2 inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] bg-copper px-4 py-[7px] text-[12px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover disabled:opacity-40 md:col-span-1"
                     >
-                      <Check className="h-4 w-4" />
+                      <Check className="h-3.5 w-3.5" />
                       Accept
                     </button>
                   </>
@@ -1772,16 +1956,16 @@ export default function SequenceApprovalPanel({
                     <button
                       onClick={handleAiRewrite}
                       disabled={isApproving || currentState === "approved" || currentState === "declined" || rewritingId === current.enrollmentId}
-                      className={`col-span-2 inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.98] disabled:opacity-40 md:col-span-1 md:px-4 md:py-2 ${
+                      className={`col-span-2 inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] border px-3 py-[7px] text-[12px] font-semibold transition-all disabled:opacity-40 md:col-span-1 md:px-4 ${
                         rewritingId === current.enrollmentId
                           ? "border-copper/30 bg-copper-light text-copper"
                           : "border-edge text-ink-mid hover:border-copper/30 hover:bg-copper-light hover:text-copper"
                       }`}
                     >
                       {rewritingId === current.enrollmentId ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <Sparkles className="h-4 w-4" />
+                        <Sparkles className="h-3.5 w-3.5" />
                       )}
                       {rewritingId === current.enrollmentId
                         ? (emailIsEmpty ? "Generating..." : "Rewriting...")
@@ -1791,31 +1975,31 @@ export default function SequenceApprovalPanel({
                     <button
                       onClick={handleDecline}
                       disabled={isApproving || currentState === "declined"}
-                      className={`inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.98] disabled:opacity-40 md:px-4 md:py-2 ${
+                      className={`inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] border px-3 py-[7px] text-[12px] font-semibold transition-all disabled:opacity-40 md:px-4 ${
                         currentState === "declined"
                           ? "border-rose/30 bg-rose-light text-rose"
                           : "border-edge text-ink-mid hover:border-rose/30 hover:bg-rose-light hover:text-rose"
                       }`}
                     >
-                      <XCircle className="h-4 w-4" />
+                      <XCircle className="h-3.5 w-3.5" />
                       {currentState === "declined" ? "Declined" : "Decline"}
                     </button>
 
                     <button
                       onClick={handleApprove}
                       disabled={isApproving || currentState === "approved" || emailIsEmpty}
-                      className={`inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-4 py-2.5 text-[13px] font-semibold shadow-xs transition-all active:scale-[0.98] disabled:opacity-50 md:px-5 md:py-2 ${
+                      className={`inline-flex cursor-pointer items-center justify-center gap-1 rounded-[8px] px-4 py-[7px] text-[12px] font-semibold shadow-xs transition-all disabled:opacity-50 md:px-5 ${
                         currentState === "approved"
                           ? "bg-sage text-white"
                           : "bg-copper text-white shadow-copper hover:bg-copper-hover"
                       }`}
                     >
                       {isApproving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : currentState === "approved" ? (
-                        <Check className="h-4 w-4" />
+                        <Check className="h-3.5 w-3.5" />
                       ) : (
-                        <Send className="h-4 w-4" />
+                        <Send className="h-3.5 w-3.5" />
                       )}
                       {currentState === "approved"
                         ? "Sent"

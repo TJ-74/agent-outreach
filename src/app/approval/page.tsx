@@ -118,50 +118,53 @@ export default function ApprovalPage() {
   const hasSent = sentEmails.length > 0 || approved.length > 0;
 
   return (
-    <div className="mx-auto max-w-[1080px] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-[family-name:var(--font-display)] text-[28px] font-extrabold tracking-[-0.03em] text-ink">
+    <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
+      {/* Header — title hidden on mobile since the top bar already shows "Approval" */}
+      <div className="mb-5 flex items-center justify-between sm:mb-8">
+        <div className="hidden sm:block">
+          <h1 className="font-[family-name:var(--font-display)] text-[26px] font-extrabold tracking-[-0.03em] text-ink">
             Approvals
           </h1>
-          <p className="mt-2 text-[14px] text-ink-mid">
+          <p className="mt-1 text-[13px] text-ink-mid">
             Review pending emails and track your sent history.
           </p>
         </div>
-        {totalPending > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-light px-3 py-1 text-[12px] font-semibold text-amber">
-              <Clock className="h-3.5 w-3.5" />
-              {totalPending} pending review{totalPending !== 1 ? "s" : ""}
-            </span>
-          </div>
+        {totalPending > 0 ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-light px-3 py-1.5 text-[12px] font-semibold text-amber sm:ml-auto">
+            <Clock className="h-3.5 w-3.5" />
+            {totalPending} pending
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-sage-light px-3 py-1.5 text-[12px] font-semibold text-sage sm:ml-auto">
+            <CheckCircle className="h-3.5 w-3.5" />
+            All clear
+          </span>
         )}
       </div>
 
-      {/* Stats */}
+      {/* Stats — always 3 columns, compact on mobile */}
       {(hasPending || hasSent) && (
-        <div className="mb-6 grid gap-3 animate-fade-up sm:grid-cols-3 sm:gap-4">
-          <div className="rounded-[14px] border border-edge bg-surface px-5 py-4 shadow-xs">
-            <div className="flex items-center gap-2 mb-1.5">
-              <GitBranch className="h-3.5 w-3.5 text-copper" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Sequences</span>
+        <div className="mb-5 grid grid-cols-3 gap-2.5 animate-fade-up sm:mb-6 sm:gap-4">
+          <div className="rounded-[12px] border border-edge bg-surface px-3 py-3 shadow-xs sm:rounded-[14px] sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <GitBranch className="h-3 w-3 text-copper sm:h-3.5 sm:w-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-ink-light sm:text-[10px]">Sequences</span>
             </div>
-            <p className="text-[24px] font-bold text-ink leading-none">{pending.length + approved.length}</p>
+            <p className="text-[20px] font-bold text-ink leading-none sm:text-[24px]">{pending.length + approved.length}</p>
           </div>
-          <div className="rounded-[14px] border border-amber/20 bg-amber-light/30 px-5 py-4 shadow-xs">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Clock className="h-3.5 w-3.5 text-amber" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-amber/70">Pending</span>
+          <div className="rounded-[12px] border border-amber/20 bg-amber-light/30 px-3 py-3 shadow-xs sm:rounded-[14px] sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Clock className="h-3 w-3 text-amber sm:h-3.5 sm:w-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-amber/70 sm:text-[10px]">Pending</span>
             </div>
-            <p className="text-[24px] font-bold text-amber leading-none">{totalPending}</p>
+            <p className="text-[20px] font-bold text-amber leading-none sm:text-[24px]">{totalPending}</p>
           </div>
-          <div className="rounded-[14px] border border-sage/20 bg-sage-light/40 px-5 py-4 shadow-xs">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Send className="h-3.5 w-3.5 text-sage" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-sage/70">Sent</span>
+          <div className="rounded-[12px] border border-sage/20 bg-sage-light/40 px-3 py-3 shadow-xs sm:rounded-[14px] sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Send className="h-3 w-3 text-sage sm:h-3.5 sm:w-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-sage/70 sm:text-[10px]">Sent</span>
             </div>
-            <p className="text-[24px] font-bold text-sage leading-none">{sentEmails.length || totalApproved}</p>
+            <p className="text-[20px] font-bold text-sage leading-none sm:text-[24px]">{sentEmails.length || totalApproved}</p>
           </div>
         </div>
       )}
@@ -301,64 +304,54 @@ export default function ApprovalPage() {
             </div>
           ) : (
             <div className="overflow-hidden rounded-[16px] border border-edge bg-surface shadow-xs">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-edge bg-cream">
-                    <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Recipient</th>
-                    <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Subject</th>
-                    <th className="hidden px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light md:table-cell">Sequence</th>
-                    <th className="px-5 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Sent</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-edge">
-                  {sentEmails.map((email, i) => (
-                    <tr
-                      key={email.id}
-                      onClick={() => setSelectedEmail(email)}
-                      className="animate-fade-up cursor-pointer transition-colors duration-150 hover:bg-cream/60"
-                      style={{ animationDelay: `${i * 25}ms` }}
-                    >
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sage-light text-[11px] font-bold text-sage">
-                            {email.lead_name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-[13px] font-semibold text-ink">{email.lead_name}</p>
-                            {email.company && (
-                              <p className="truncate text-[11px] text-ink-light">{email.company}</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <p className="truncate text-[13px] text-ink-mid">{email.subject || "(No subject)"}</p>
-                      </td>
-                      <td className="hidden px-5 py-3.5 md:table-cell">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-edge bg-cream px-2.5 py-[2px] text-[11px] font-medium text-ink-mid">
-                          <GitBranch className="h-3 w-3" />
-                          {email.sequence_name}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <span className="text-[12px] text-ink-light">{timeAgo(email.sent_at)}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {sentEmails.map((email, i) => (
+                <button
+                  key={email.id}
+                  type="button"
+                  onClick={() => setSelectedEmail(email)}
+                  className="animate-fade-up flex w-full cursor-pointer items-center gap-3 border-b border-edge px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-cream/60 sm:px-5 sm:py-4"
+                  style={{ animationDelay: `${i * 25}ms` }}
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sage-light text-[11px] font-bold text-sage">
+                    {email.lead_name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-[13px] font-semibold text-ink">{email.lead_name}</p>
+                      <span className="shrink-0 text-[11px] text-ink-light">{timeAgo(email.sent_at)}</span>
+                    </div>
+                    <p className="truncate text-[12px] text-ink-mid">{email.subject || "(No subject)"}</p>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      {email.company && (
+                        <span className="truncate text-[11px] text-ink-light">{email.company}</span>
+                      )}
+                      <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-edge bg-cream px-1.5 py-[1px] text-[10px] font-medium text-ink-light">
+                        <GitBranch className="h-2.5 w-2.5" />
+                        {email.sequence_name}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
           )}
         </>
       )}
 
-      {/* Modal: view sent email */}
+      {/* Email detail — bottom sheet on mobile, centred modal on sm+ */}
       {selectedEmail && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[2px]" onClick={() => setSelectedEmail(null)} />
-          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-[16px] border border-edge bg-surface shadow-xl overflow-hidden max-h-[85vh] flex flex-col animate-fade-up">
-            {/* Modal header */}
-            <div className="flex items-start justify-between border-b border-edge px-6 py-5">
+          <div
+            className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[2px]"
+            onClick={() => setSelectedEmail(null)}
+          />
+          <div className="fixed inset-x-0 bottom-0 z-50 flex max-h-[88vh] flex-col overflow-hidden rounded-t-[22px] border-t border-edge bg-surface shadow-xl animate-fade-up sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-full sm:max-w-[600px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[16px] sm:border">
+            {/* Drag handle (mobile only) */}
+            <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
+              <div className="h-1 w-10 rounded-full bg-edge-strong" />
+            </div>
+            {/* Header */}
+            <div className="flex shrink-0 items-start justify-between border-b border-edge px-5 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start gap-3 min-w-0">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sage-light text-[12px] font-bold text-sage">
                   {selectedEmail.lead_name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
@@ -383,14 +376,14 @@ export default function ApprovalPage() {
               <button
                 type="button"
                 onClick={() => setSelectedEmail(null)}
-                className="cursor-pointer shrink-0 rounded-[8px] p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid"
+                className="cursor-pointer shrink-0 rounded-full p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid"
               >
                 <X className="h-[18px] w-[18px]" />
               </button>
             </div>
-            {/* Modal body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              <div className="mb-4">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
+              <div className="mb-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Subject</p>
                 <p className="mt-1 text-[14px] font-semibold text-ink">{selectedEmail.subject || "(No subject)"}</p>
               </div>
@@ -402,31 +395,29 @@ export default function ApprovalPage() {
                   </span>
                 </div>
               )}
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light mb-2">Body</p>
-                {selectedEmail.is_html ? (
-                  <iframe
-                    srcDoc={buildPreviewSrcDoc(
-                      `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:12px;font-size:13px;line-height:1.7;color:${theme === "dark" ? "#EDE9E4" : "#2C2925"};background:${theme === "dark" ? "#1F272E" : "#ffffff"}}</style>`,
-                      selectedEmail.body
-                    )}
-                    sandbox="allow-same-origin"
-                    className="w-full rounded-[10px] border border-edge bg-surface"
-                    style={{ border: "1px solid var(--color-edge)", minHeight: 200 }}
-                    onLoad={(e) => {
-                      const iframe = e.currentTarget;
-                      const doc = iframe.contentDocument;
-                      if (doc) iframe.style.height = Math.min(doc.documentElement.scrollHeight + 8, 400) + "px";
-                    }}
-                  />
-                ) : (
-                  <div className="rounded-[10px] border border-edge bg-cream/30 px-4 py-3">
-                    <p className="whitespace-pre-wrap text-[13px] leading-[1.7] text-ink-mid">
-                      {selectedEmail.body || "(No body)"}
-                    </p>
-                  </div>
-                )}
-              </div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Body</p>
+              {selectedEmail.is_html ? (
+                <iframe
+                  srcDoc={buildPreviewSrcDoc(
+                    `<style>*{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif!important}body{margin:0;padding:12px;font-size:13px;line-height:1.7;color:${theme === "dark" ? "#EDE9E4" : "#2C2925"};background:${theme === "dark" ? "#1F272E" : "#ffffff"}}</style>`,
+                    selectedEmail.body
+                  )}
+                  sandbox="allow-same-origin"
+                  className="w-full rounded-[10px] border border-edge bg-surface"
+                  style={{ border: "1px solid var(--color-edge)", minHeight: 200 }}
+                  onLoad={(e) => {
+                    const iframe = e.currentTarget;
+                    const doc = iframe.contentDocument;
+                    if (doc) iframe.style.height = Math.min(doc.documentElement.scrollHeight + 8, 400) + "px";
+                  }}
+                />
+              ) : (
+                <div className="rounded-[10px] border border-edge bg-cream/30 px-4 py-3">
+                  <p className="whitespace-pre-wrap text-[13px] leading-[1.7] text-ink-mid">
+                    {selectedEmail.body || "(No body)"}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </>

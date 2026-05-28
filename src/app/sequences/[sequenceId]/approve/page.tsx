@@ -173,18 +173,20 @@ export default function SequenceApprovePage() {
   }
 
   return (
-    <SequenceApprovalPanel
-      sequenceId={sequenceId}
-      sequenceName={sequenceName ?? "Sequence"}
-      previews={previews}
-      totalPreviews={totalPreviews}
-      page={approvalPage}
-      pageSize={APPROVAL_PAGE_SIZE}
-      loadingPage={loadingPage}
-      onPageChange={setApprovalPage}
-      onClose={() => router.push("/sequences")}
-      onSequenceCompleted={() => router.push("/sequences")}
-      standalone
-    />
+    <div className="fixed inset-x-0 top-[52px] bottom-16 overflow-hidden md:static md:h-[100dvh] md:max-h-[100dvh]">
+      <SequenceApprovalPanel
+        sequenceId={sequenceId}
+        sequenceName={sequenceName ?? "Sequence"}
+        previews={previews}
+        totalPreviews={totalPreviews}
+        page={approvalPage}
+        pageSize={APPROVAL_PAGE_SIZE}
+        loadingPage={loadingPage}
+        onPageChange={setApprovalPage}
+        onClose={() => router.push("/sequences")}
+        onSequenceCompleted={() => router.push("/sequences")}
+        standalone
+      />
+    </div>
   );
 }
