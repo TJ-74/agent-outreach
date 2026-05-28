@@ -21,6 +21,7 @@ import {
   completenessScore,
 } from "@/store/training";
 import TrainingEditorPanel from "@/components/TrainingEditorPanel";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 
 function CompletenessRing({ score, size = 44 }: { score: number; size?: number }) {
   const r = (size - 6) / 2;
@@ -89,6 +90,8 @@ export default function TrainingPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<TrainingConfig | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<TrainingConfig | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchConfigs();
@@ -118,6 +121,14 @@ export default function TrainingPage() {
     await duplicateConfig(config.id);
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await deleteConfig(deleteTarget.id);
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   if (loading && configs.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3">
@@ -128,7 +139,7 @@ export default function TrainingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1080px] px-10 py-12">
+    <div className="mx-auto max-w-[1080px] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -144,7 +155,7 @@ export default function TrainingPage() {
         </div>
         <button
           onClick={openNew}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98]"
+          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:w-auto"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />
           New Training Profile
@@ -254,7 +265,7 @@ export default function TrainingPage() {
                     <Copy className="h-[15px] w-[15px]" />
                   </button>
                   <button
-                    onClick={() => deleteConfig(config.id)}
+                    onClick={() => setDeleteTarget(config)}
                     className="cursor-pointer rounded-[7px] p-[6px] text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
                     title="Delete"
                   >
@@ -296,6 +307,14 @@ export default function TrainingPage() {
           onClose={handleClose}
         />
       )}
+      <ConfirmDeleteModal
+        open={!!deleteTarget}
+        title="Delete training profile?"
+        description={`Delete "${deleteTarget?.name ?? "this profile"}"? This cannot be undone.`}
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

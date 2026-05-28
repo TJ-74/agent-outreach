@@ -61,13 +61,13 @@ export default function CreateLeadModal({ open, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
         onClick={onClose}
       />
 
-      <div className="animate-scale-up relative z-10 w-full max-w-[520px] rounded-[20px] border border-edge bg-surface p-8 shadow-lg">
+      <div className="animate-scale-up relative z-10 max-h-[92vh] w-full max-w-[520px] overflow-y-auto rounded-[20px] border border-edge bg-surface p-5 shadow-lg sm:p-8">
         <div className="mb-7 flex items-start justify-between">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-[20px] font-bold tracking-[-0.02em] text-ink">
@@ -87,7 +87,7 @@ export default function CreateLeadModal({ open, onClose }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-7">
           <Section icon={<User className="h-3.5 w-3.5" />} label="Personal">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="First Name"
                 value={form.firstName}
@@ -118,7 +118,7 @@ export default function CreateLeadModal({ open, onClose }: Props) {
           </Section>
 
           <Section icon={<Building2 className="h-3.5 w-3.5" />} label="Company">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="Company"
                 value={form.company}

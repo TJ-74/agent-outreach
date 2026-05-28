@@ -33,6 +33,7 @@ import { useGoogleStore } from "@/store/google";
 import { useDraftStore, type Draft } from "@/store/drafts";
 import { supabase } from "@/lib/supabase";
 import ActionBadge from "@/components/StatusBadge";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 
 interface Message {
   id: string;
@@ -201,6 +202,8 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
   const { drafts, fetchDrafts, saveDraft, updateDraft, deleteDraft } = useDraftStore();
 
   const [draftThreadMap, setDraftThreadMap] = useState<Record<string, string>>({});
+  const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
+  const [deletingDraft, setDeletingDraft] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -456,8 +459,16 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
     }
   };
 
-  const handleDeclineDraft = async (draftId: string) => {
-    await deleteDraft(draftId);
+  const handleDeclineDraft = (draftId: string) => {
+    setDraftToDelete(draftId);
+  };
+
+  const confirmDeleteDraft = async () => {
+    if (!draftToDelete) return;
+    setDeletingDraft(true);
+    await deleteDraft(draftToDelete);
+    setDeletingDraft(false);
+    setDraftToDelete(null);
   };
 
   const handleSend = async (e: FormEvent) => {
@@ -680,6 +691,14 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
           </div>
         )}
       </div>
+      <ConfirmDeleteModal
+        open={!!draftToDelete}
+        title="Delete draft?"
+        description="Delete this draft reply? This cannot be undone."
+        loading={deletingDraft}
+        onConfirm={confirmDeleteDraft}
+        onClose={() => setDraftToDelete(null)}
+      />
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Mail } from "lucide-react";
 import Link from "next/link";
-import { useSequenceStore } from "@/store/sequences";
 import SequenceApprovalPanel from "@/components/SequenceApprovalPanel";
 import type { LeadPreview } from "@/app/api/sequences/preview-step/route";
 
@@ -13,7 +12,6 @@ export default function SequenceApprovePage() {
   const router = useRouter();
   const sequenceId = typeof params.sequenceId === "string" ? params.sequenceId : null;
 
-  const { fetchEnrollments, enrollments } = useSequenceStore();
   const [sequenceName, setSequenceName] = useState<string | null>(null);
   const [previews, setPreviews] = useState<LeadPreview[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,10 +30,7 @@ export default function SequenceApprovePage() {
       setLoading(true);
       setError(null);
       try {
-        const [seqRes, _] = await Promise.all([
-          fetch(`/api/sequences/${sequenceId}`),
-          fetchEnrollments(sequenceId),
-        ]);
+        const seqRes = await fetch(`/api/sequences/${sequenceId}`);
 
         if (cancelled) return;
         if (!seqRes.ok) {
@@ -47,23 +42,10 @@ export default function SequenceApprovePage() {
         const seq = await seqRes.json();
         setSequenceName(seq.name ?? "Sequence");
 
-        const pendingLeadIds = useSequenceStore
-          .getState()
-          .enrollments.filter(
-            (e) => e.currentStep <= 1 && e.status !== "completed"
-          )
-          .map((e) => e.leadId);
-
-        if (pendingLeadIds.length === 0) {
-          setPreviews([]);
-          setLoading(false);
-          return;
-        }
-
         const previewRes = await fetch("/api/sequences/preview-step", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sequenceId, leadIds: pendingLeadIds }),
+          body: JSON.stringify({ sequenceId }),
         });
 
         if (cancelled) return;
@@ -86,7 +68,7 @@ export default function SequenceApprovePage() {
     return () => {
       cancelled = true;
     };
-  }, [sequenceId, fetchEnrollments]);
+  }, [sequenceId]);
 
   if (!sequenceId) {
     return (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getValidAccessToken, getGraphClient } from "@/lib/outlook";
+import { findRecentSentMessageId, getValidAccessToken, getGraphClient } from "@/lib/outlook";
 import { getValidGoogleAccessToken, sendGmailEmail } from "@/lib/google";
 import { bodyLooksLikeHtml, inlineEmailHtml } from "@/lib/sequence";
 import { supabase } from "@/lib/supabase";
@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
   const effectiveIsHtml = !!isHtml || bodyLooksLikeHtml(body);
   const finalBody = effectiveIsHtml ? inlineEmailHtml(body) : body;
 
+  let outlookMessageId: string | null = null;
+
   try {
     if (outlookToken) {
       const client = getGraphClient(outlookToken);
@@ -60,12 +62,10 @@ export async function POST(req: NextRequest) {
           subject,
           body: { contentType: effectiveIsHtml ? "HTML" : "Text", content: finalBody },
           toRecipients: [{ emailAddress: { address: lead.email } }],
-          from: senderName
-            ? { emailAddress: { name: senderName, address: senderEmail } }
-            : undefined,
         },
         saveToSentItems: true,
       });
+      outlookMessageId = await findRecentSentMessageId(client, lead.email, subject);
     } else if (googleToken) {
       await sendGmailEmail({
         accessToken: googleToken,
@@ -124,6 +124,7 @@ export async function POST(req: NextRequest) {
       subject,
       body: finalBody,
       is_html: effectiveIsHtml,
+      outlook_message_id: outlookMessageId,
     });
   }
 

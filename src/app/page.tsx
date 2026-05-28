@@ -135,27 +135,27 @@ export default function Dashboard() {
   const pipelineTotal = pipelineStatuses.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0) || 1;
 
   return (
-    <div className="min-h-screen px-6 py-10 md:px-10">
+    <div className="min-h-screen px-4 py-8 sm:px-6 md:px-10 md:py-10">
       <div className="mx-auto max-w-[1080px]">
 
         {/* Header */}
-        <div className="mb-8 flex items-end justify-between animate-fade-up">
+        <div className="mb-6 flex flex-col gap-4 animate-fade-up sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-copper/10">
-                <Zap className="h-[18px] w-[18px] text-copper" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-copper/10 sm:h-9 sm:w-9 sm:rounded-[10px]">
+                <Zap className="h-4 w-4 text-copper sm:h-[18px] sm:w-[18px]" />
               </div>
-              <h1 className="font-[family-name:var(--font-display)] text-[26px] font-extrabold tracking-[-0.03em] text-ink">
+              <h1 className="font-[family-name:var(--font-display)] text-[22px] font-extrabold tracking-[-0.03em] text-ink sm:text-[26px]">
                 Dashboard
               </h1>
             </div>
-            <p className="ml-12 text-[14px] text-ink-mid">
+            <p className="text-[13px] text-ink-mid sm:ml-12 sm:text-[14px]">
               Your outreach pipeline at a glance.
             </p>
           </div>
           <Link
             href="/leads"
-            className="inline-flex items-center gap-2 rounded-[10px] bg-copper px-5 py-[9px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-copper px-4 py-3 text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:w-auto sm:px-5 sm:py-[9px]"
           >
             <UserPlus className="h-4 w-4" />
             Add Lead
@@ -163,7 +163,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Stat cards ── */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5 animate-fade-up" style={{ animationDelay: "40ms" }}>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-4 animate-fade-up" style={{ animationDelay: "40ms" }}>
           {[
             { label: "Total Leads", value: totals.leads, icon: Users, color: "text-copper", bg: "bg-copper-light", href: "/leads" },
             { label: "Sequences", value: totals.sequences, icon: GitBranch, color: "text-copper", bg: "bg-copper-light", href: "/sequences" },
@@ -174,16 +174,16 @@ export default function Dashboard() {
             <Link
               key={s.label}
               href={s.href}
-              className="group rounded-[16px] border border-edge bg-surface p-5 shadow-xs transition-all hover:shadow-sm hover:border-edge-strong"
+              className="group rounded-[14px] border border-edge bg-surface p-4 shadow-xs transition-all hover:shadow-sm hover:border-edge-strong sm:rounded-[16px] sm:p-5"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[12px] font-medium text-ink-mid">{s.label}</span>
-                <div className={`rounded-[8px] p-[6px] ${s.bg}`}>
-                  <s.icon className={`h-[14px] w-[14px] ${s.color}`} strokeWidth={2} />
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium leading-tight text-ink-mid sm:text-[12px]">{s.label}</span>
+                <div className={`rounded-[8px] p-1.5 ${s.bg}`}>
+                  <s.icon className={`h-3.5 w-3.5 ${s.color}`} strokeWidth={2} />
                 </div>
               </div>
-              <p className="font-[family-name:var(--font-display)] text-[28px] font-extrabold tracking-[-0.04em] text-ink leading-none">
+              <p className="font-[family-name:var(--font-display)] text-[24px] font-extrabold tracking-[-0.04em] text-ink leading-none sm:text-[28px]">
                 {s.value}
               </p>
             </Link>
@@ -191,10 +191,10 @@ export default function Dashboard() {
         </div>
 
         {/* ── Pipeline + Sending activity ── */}
-        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr] animate-fade-up" style={{ animationDelay: "100ms" }}>
+        <div className="mt-6 grid grid-cols-1 gap-4 lg:mt-8 lg:grid-cols-[1fr_1fr] lg:gap-5 animate-fade-up" style={{ animationDelay: "100ms" }}>
 
           {/* Pipeline */}
-          <div className="rounded-[16px] border border-edge bg-surface p-6 shadow-xs">
+          <div className="rounded-[16px] border border-edge bg-surface p-4 shadow-xs sm:p-6">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-copper" />
@@ -232,7 +232,7 @@ export default function Dashboard() {
             </div>
 
             {/* Legend */}
-            <div className="mt-4 grid grid-cols-3 gap-y-2.5 gap-x-4">
+            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
               {pipelineStatuses.map((s) => {
                 const count = statusCounts[s] ?? 0;
                 const meta = STATUS_META[s];
@@ -277,7 +277,7 @@ export default function Dashboard() {
           </div>
 
           {/* Sending activity chart */}
-          <div className="rounded-[16px] border border-edge bg-surface p-6 shadow-xs">
+          <div className="rounded-[16px] border border-edge bg-surface p-4 shadow-xs sm:p-6">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-sage" />
@@ -287,7 +287,7 @@ export default function Dashboard() {
             </div>
 
             {/* Bar chart */}
-            <div className="flex items-end gap-3" style={{ height: 150 }}>
+            <div className="flex items-end gap-2 sm:gap-3" style={{ height: 140 }}>
               {dailySent.map((d) => {
                 const barHeight = d.count > 0 ? Math.max((d.count / maxDailySent) * 110, 6) : 3;
                 const isToday = d.date === new Date().toISOString().slice(0, 10);
@@ -339,11 +339,11 @@ export default function Dashboard() {
         </div>
 
         {/* ── Recent sent + Recent leads ── */}
-        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-[1.2fr_1fr] animate-fade-up" style={{ animationDelay: "140ms" }}>
+        <div className="mt-6 grid grid-cols-1 gap-4 lg:mt-8 lg:grid-cols-[1.2fr_1fr] lg:gap-5 animate-fade-up" style={{ animationDelay: "140ms" }}>
 
           {/* Recent sent emails */}
           <div className="rounded-[16px] border border-edge bg-surface shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-edge">
+            <div className="flex items-center justify-between border-b border-edge px-4 py-3.5 sm:px-6 sm:py-4">
               <div className="flex items-center gap-2">
                 <Send className="h-4 w-4 text-sage" />
                 <h2 className="text-[14px] font-bold text-ink">Recent Emails</h2>
@@ -355,7 +355,7 @@ export default function Dashboard() {
             {recentSent.length > 0 ? (
               <div className="divide-y divide-edge">
                 {recentSent.map((e) => (
-                  <div key={e.id} className="flex items-center gap-3 px-6 py-3.5 transition-colors hover:bg-cream/40">
+                  <div key={e.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-cream/40 sm:px-6 sm:py-3.5">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sage-light">
                       <Mail className="h-4 w-4 text-sage" />
                     </div>
@@ -391,7 +391,7 @@ export default function Dashboard() {
 
           {/* Recent leads */}
           <div className="rounded-[16px] border border-edge bg-surface shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-edge">
+            <div className="flex items-center justify-between border-b border-edge px-4 py-3.5 sm:px-6 sm:py-4">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-copper" />
                 <h2 className="text-[14px] font-bold text-ink">Recent Leads</h2>
@@ -406,7 +406,7 @@ export default function Dashboard() {
                   const name = `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim() || l.email;
                   const meta = STATUS_META[l.status] ?? STATUS_META.new;
                   return (
-                    <div key={l.id} className="flex items-center gap-3 px-6 py-3.5 transition-colors hover:bg-cream/40">
+                    <div key={l.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-cream/40 sm:px-6 sm:py-3.5">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-copper-light font-[family-name:var(--font-display)] text-[11px] font-bold text-copper">
                         {name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                       </div>
@@ -439,10 +439,10 @@ export default function Dashboard() {
         </div>
 
         {/* ── Quick actions ── */}
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3 animate-fade-up" style={{ animationDelay: "180ms" }}>
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:mt-8 lg:gap-4 animate-fade-up" style={{ animationDelay: "180ms" }}>
           <Link
             href="/leads"
-            className="group flex items-center justify-between rounded-[14px] border border-edge bg-surface px-5 py-4 shadow-xs transition-all hover:border-copper-muted hover:shadow-sm"
+            className="group flex min-h-[64px] items-center justify-between rounded-[14px] border border-edge bg-surface px-4 py-3.5 shadow-xs transition-all hover:border-copper-muted hover:shadow-sm sm:px-5 sm:py-4"
           >
             <div className="flex items-center gap-3">
               <div className="rounded-[8px] bg-copper-light p-2.5">
@@ -458,7 +458,7 @@ export default function Dashboard() {
 
           <Link
             href="/sequences"
-            className="group flex items-center justify-between rounded-[14px] border border-edge bg-surface px-5 py-4 shadow-xs transition-all hover:border-sage-muted hover:shadow-sm"
+            className="group flex min-h-[64px] items-center justify-between rounded-[14px] border border-edge bg-surface px-4 py-3.5 shadow-xs transition-all hover:border-sage-muted hover:shadow-sm sm:px-5 sm:py-4"
           >
             <div className="flex items-center gap-3">
               <div className="rounded-[8px] bg-sage-light p-2.5">
@@ -474,7 +474,7 @@ export default function Dashboard() {
 
           <Link
             href="/approval"
-            className="group flex items-center justify-between rounded-[14px] border border-edge bg-surface px-5 py-4 shadow-xs transition-all hover:border-amber/20 hover:shadow-sm"
+            className="group flex min-h-[64px] items-center justify-between rounded-[14px] border border-edge bg-surface px-4 py-3.5 shadow-xs transition-all hover:border-amber/20 hover:shadow-sm sm:px-5 sm:py-4"
           >
             <div className="flex items-center gap-3">
               <div className="rounded-[8px] bg-amber-light p-2.5">

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { chunkArray, SUPABASE_IN_FILTER_CHUNK_SIZE, SUPABASE_PAGE_SIZE } from "@/lib/batch";
 
 export type LeadStatus =
   | "new"
@@ -116,6 +117,29 @@ function getUserId(): string | null {
   return ggMatch ? decodeURIComponent(ggMatch[1]) : null;
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+async function fetchExistingEmails(uid: string, emails: string[]): Promise<Set<string>> {
+  const normalized = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
+  const existing = new Set<string>();
+
+  for (const chunk of chunkArray(normalized, SUPABASE_IN_FILTER_CHUNK_SIZE)) {
+    const { data } = await supabase
+      .from("leads")
+      .select("email")
+      .eq("user_id", uid)
+      .or(chunk.map((email) => `email.ilike.${email}`).join(","));
+
+    for (const row of data ?? []) {
+      existing.add(normalizeEmail(row.email));
+    }
+  }
+
+  return existing;
+}
+
 interface LeadState {
   leads: Lead[];
   searchQuery: string;
@@ -125,9 +149,11 @@ interface LeadState {
   pageSize: number;
   totalCount: number;
   fetchLeads: () => Promise<void>;
+  fetchAllMatchingLeads: () => Promise<Lead[]>;
+  searchAllLeads: (query: string) => Promise<Lead[]>;
   addLead: (lead: LeadInput) => Promise<{ success: boolean; duplicate?: boolean }>;
   addLeadsBulk: (leads: LeadInput[]) => Promise<{ inserted: number; skipped: number; duplicates: number; leadIds: string[] }>;
-  updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
+  updateLead: (id: string, updates: Partial<Lead>) => Promise<{ success: boolean; duplicate?: boolean }>;
   deleteLead: (id: string) => Promise<void>;
   setSearch: (query: string) => void;
   setFilter: (status: ActionNeeded | "all") => void;
@@ -182,18 +208,75 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     set({ loading: false });
   },
 
+  fetchAllMatchingLeads: async (): Promise<Lead[]> => {
+    const uid = getUserId();
+    if (!uid) return [];
+
+    const { searchQuery, filterStatus } = get();
+    const rows: DbRow[] = [];
+
+    for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+      const to = from + SUPABASE_PAGE_SIZE - 1;
+      let query = supabase
+        .from("leads")
+        .select("*")
+        .eq("user_id", uid);
+
+      if (filterStatus !== "all") {
+        query = query.eq("action_needed", filterStatus);
+      }
+
+      if (searchQuery.trim()) {
+        const q = `%${searchQuery.trim()}%`;
+        query = query.or(
+          `first_name.ilike.${q},last_name.ilike.${q},email.ilike.${q},company.ilike.${q}`
+        );
+      }
+
+      const { data, error } = await query
+        .order("company", { ascending: true })
+        .order("last_name", { ascending: true })
+        .range(from, to);
+
+      if (error || !data) break;
+      rows.push(...(data as DbRow[]));
+      if (data.length < SUPABASE_PAGE_SIZE) break;
+    }
+
+    return rows.map(rowToLead);
+  },
+
+  searchAllLeads: async (query: string): Promise<Lead[]> => {
+    const uid = getUserId();
+    if (!uid) return [];
+
+    let q = supabase
+      .from("leads")
+      .select("*")
+      .eq("user_id", uid)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (query.trim()) {
+      const like = `%${query.trim()}%`;
+      q = q.or(
+        `first_name.ilike.${like},last_name.ilike.${like},email.ilike.${like},company.ilike.${like}`
+      );
+    }
+
+    const { data, error } = await q;
+    if (error || !data) return [];
+    return (data as DbRow[]).map(rowToLead);
+  },
+
   addLead: async (lead) => {
     const uid = getUserId();
     if (!uid) return { success: false };
+    const email = normalizeEmail(lead.email);
+    if (!email) return { success: false };
 
-    const { data: existing } = await supabase
-      .from("leads")
-      .select("id")
-      .eq("user_id", uid)
-      .ilike("email", lead.email.trim())
-      .limit(1);
-
-    if (existing && existing.length > 0) {
+    const existingEmails = await fetchExistingEmails(uid, [email]);
+    if (existingEmails.has(email)) {
       return { success: false, duplicate: true };
     }
 
@@ -203,7 +286,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
         user_id: uid,
         first_name: lead.firstName,
         last_name: lead.lastName,
-        email: lead.email,
+        email,
         company: lead.company,
         job_title: lead.jobTitle,
         linked_in: lead.linkedIn,
@@ -228,19 +311,24 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     const uid = getUserId();
     if (!uid || leads.length === 0) return { inserted: 0, skipped: leads.length, duplicates: 0, leadIds: [] };
 
-    const emails = leads.map((l) => l.email.trim().toLowerCase());
-    const { data: existingRows } = await supabase
-      .from("leads")
-      .select("email")
-      .eq("user_id", uid)
-      .in("email", emails);
+    const seenInputEmails = new Set<string>();
+    const uniqueLeads: LeadInput[] = [];
+    let inputDuplicates = 0;
 
-    const existingEmails = new Set(
-      (existingRows ?? []).map((r: { email: string }) => r.email.trim().toLowerCase())
-    );
+    for (const lead of leads) {
+      const email = normalizeEmail(lead.email);
+      if (!email || seenInputEmails.has(email)) {
+        inputDuplicates++;
+        continue;
+      }
+      seenInputEmails.add(email);
+      uniqueLeads.push({ ...lead, email });
+    }
 
-    const newLeads = leads.filter((l) => !existingEmails.has(l.email.trim().toLowerCase()));
-    const duplicates = leads.length - newLeads.length;
+    const existingEmails = await fetchExistingEmails(uid, uniqueLeads.map((lead) => lead.email));
+
+    const newLeads = uniqueLeads.filter((l) => !existingEmails.has(normalizeEmail(l.email)));
+    const duplicates = inputDuplicates + (uniqueLeads.length - newLeads.length);
 
     if (newLeads.length === 0) {
       return { inserted: 0, skipped: 0, duplicates, leadIds: [] };
@@ -284,9 +372,28 @@ export const useLeadStore = create<LeadState>((set, get) => ({
 
   updateLead: async (id, updates) => {
     const dbUpdates: Record<string, unknown> = {};
+    const uid = getUserId();
+
+    if (updates.email !== undefined) {
+      if (!uid) return { success: false };
+      const email = normalizeEmail(updates.email);
+      const { data: existing } = await supabase
+        .from("leads")
+        .select("id")
+        .eq("user_id", uid)
+        .ilike("email", email)
+        .neq("id", id)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        return { success: false, duplicate: true };
+      }
+      dbUpdates.email = email;
+      updates = { ...updates, email };
+    }
+
     if (updates.firstName !== undefined) dbUpdates.first_name = updates.firstName;
     if (updates.lastName !== undefined) dbUpdates.last_name = updates.lastName;
-    if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.company !== undefined) dbUpdates.company = updates.company;
     if (updates.jobTitle !== undefined) dbUpdates.job_title = updates.jobTitle;
     if (updates.linkedIn !== undefined) dbUpdates.linked_in = updates.linkedIn;
@@ -315,7 +422,9 @@ export const useLeadStore = create<LeadState>((set, get) => ({
           l.id === id ? { ...l, ...updates } : l
         ),
       }));
+      return { success: true };
     }
+    return { success: false };
   },
 
   deleteLead: async (id) => {

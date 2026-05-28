@@ -49,7 +49,7 @@ interface DraftState {
   draftCountByLead: Record<string, number>;
   fetchDrafts: (leadId: string) => Promise<void>;
   fetchDraftCounts: () => Promise<void>;
-  saveDraft: (leadId: string, subject: string, body: string) => Promise<Draft | null>;
+  saveDraft: (leadId: string, subject: string, body: string, replyToMessageId?: string | null) => Promise<Draft | null>;
   updateDraft: (id: string, subject: string, body: string) => Promise<void>;
   deleteDraft: (id: string) => Promise<void>;
 }
@@ -93,7 +93,7 @@ export const useDraftStore = create<DraftState>((set) => ({
     }
   },
 
-  saveDraft: async (leadId, subject, body) => {
+  saveDraft: async (leadId, subject, body, replyToMessageId = null) => {
     const uid = getUserId();
     if (!uid) return null;
 
@@ -104,6 +104,7 @@ export const useDraftStore = create<DraftState>((set) => ({
         user_id: uid,
         subject,
         body,
+        reply_to_message_id: replyToMessageId,
       })
       .select()
       .single();

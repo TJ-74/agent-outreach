@@ -26,6 +26,7 @@ import {
   Linkedin,
   Save,
   Cpu,
+  MessageSquare,
 } from "lucide-react";
 import type { LeadPreview } from "@/app/api/sequences/preview-step/route";
 import {
@@ -37,6 +38,7 @@ import {
 import { extractDomain, clusterByDomain } from "@/lib/domain";
 import { bodyLooksLikeHtml, isEmptyRichHtml } from "@/lib/sequence";
 import { supabase } from "@/lib/supabase";
+import { buildPreviewSrcDoc } from "@/lib/html-preview";
 import { useOutlookStore } from "@/store/outlook";
 import { useGoogleStore } from "@/store/google";
 import dynamic from "next/dynamic";
@@ -85,7 +87,7 @@ function HtmlPreview({ html }: { html: string }) {
   const { theme } = useTheme();
   return (
     <iframe
-      srcDoc={iframeStyle(theme === "dark") + html}
+      srcDoc={buildPreviewSrcDoc(iframeStyle(theme === "dark"), html)}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       title="Email preview"
       className="w-full bg-surface"
@@ -925,6 +927,15 @@ export default function SequenceApprovalPanel({
                           <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-amber" title={`${orgClusters.find((c) => c.domain === d)?.count} contacts @${d}`} />
                         ) : null;
                       })()}
+                      {p.hasPreviousConversation && (
+                        <span
+                          className="shrink-0 inline-flex items-center gap-[3px] rounded-full bg-rose-light px-1.5 py-[1px] text-[9px] font-bold uppercase tracking-[0.04em] text-rose"
+                          title={`${p.previousConversationCount} previous message${p.previousConversationCount !== 1 ? "s" : ""}`}
+                        >
+                          <MessageSquare className="h-2.5 w-2.5" />
+                          Prior
+                        </span>
+                      )}
                     </div>
                   </div>
                   {state === "approved" && (
@@ -998,7 +1009,7 @@ export default function SequenceApprovalPanel({
       {/* ── Main content area ── */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Mobile header (shown on small screens) */}
-        <div className="flex md:hidden items-center justify-between border-b border-edge bg-surface px-4 py-3">
+        <div className="sticky top-0 z-40 flex items-center justify-between border-b border-edge bg-surface px-4 py-3 md:hidden">
           <button onClick={onClose} className="cursor-pointer rounded-[7px] p-1.5 text-ink-light hover:bg-cream hover:text-ink-mid">
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -1012,7 +1023,7 @@ export default function SequenceApprovalPanel({
         </div>
 
         {/* Mobile progress bar */}
-        <div className="md:hidden h-[3px] bg-cream-deep">
+        <div className="sticky top-[53px] z-40 h-[3px] bg-cream-deep md:hidden">
           <div className="h-full bg-copper transition-all duration-500" style={{ width: `${progressPct}%` }} />
         </div>
 
@@ -1073,7 +1084,7 @@ export default function SequenceApprovalPanel({
               }`}
             >
               {/* Recipient bar */}
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-copper-light">
                     <User className="h-4.5 w-4.5 text-copper" />
@@ -1106,10 +1117,19 @@ export default function SequenceApprovalPanel({
                           </a>
                         </>
                       )}
+                      {current.hasPreviousConversation && (
+                        <>
+                          <span className="text-ink-faint shrink-0">·</span>
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-[7px] bg-rose-light px-1.5 py-[3px] text-[11px] font-semibold text-rose">
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Previous conversation
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
-                <div className="shrink-0 ml-3 flex items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 md:ml-3 md:w-auto md:shrink-0 md:justify-end">
                   {/* AI model selector */}
                   <div ref={modelDropRef} className="relative">
                     <button
@@ -1123,14 +1143,14 @@ export default function SequenceApprovalPanel({
                       }`}
                     >
                       <Cpu className="h-3.5 w-3.5 shrink-0" />
-                      <span className="max-w-[90px] truncate text-[11px] font-semibold">
+                      <span className="max-w-[82px] truncate text-[11px] font-semibold sm:max-w-[90px]">
                         {EMAIL_LLM_MODELS.find((m) => m.id === emailLlmModel)?.label ?? emailLlmModel}
                       </span>
                       <svg className={`h-3 w-3 shrink-0 transition-transform ${modelDropOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
 
                     {modelDropOpen && (
-                      <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[220px] overflow-hidden rounded-[12px] border border-edge bg-surface shadow-lg">
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[220px] overflow-hidden rounded-[12px] border border-edge bg-surface shadow-lg max-sm:left-0 max-sm:right-auto">
                         <div className="border-b border-edge px-3 py-2">
                           <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-light">AI Model</p>
                           <p className="text-[10px] text-ink-light">Used for rewrite &amp; research</p>
@@ -1193,9 +1213,9 @@ export default function SequenceApprovalPanel({
                     {index + 1}/{previews.length}
                   </span>
                   {trainingProfileName && (
-                    <div className="flex items-center gap-1.5 rounded-[8px] bg-copper-light/40 px-2.5 py-1.5">
+                    <div className="flex min-w-0 items-center gap-1.5 rounded-[8px] bg-copper-light/40 px-2.5 py-1.5">
                       <BrainCircuit className="h-3.5 w-3.5 text-copper" />
-                      <span className="text-[12px] font-semibold text-copper">{trainingProfileName}</span>
+                      <span className="truncate text-[12px] font-semibold text-copper">{trainingProfileName}</span>
                     </div>
                   )}
                 </div>
@@ -1226,6 +1246,28 @@ export default function SequenceApprovalPanel({
                         </span>
                       ))}
                       . Personalise each message to avoid appearing templated.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Previous conversation warning */}
+              {current.hasPreviousConversation && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-[10px] border border-rose/30 bg-rose-light/40 px-3.5 py-2.5">
+                  <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-rose" />
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-semibold text-rose">
+                      This lead has previous conversation history
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-[1.5] text-ink-mid">
+                      Found {current.previousConversationCount} prior message{current.previousConversationCount !== 1 ? "s" : ""}
+                      {current.previousConversationAt
+                        ? `, most recently ${new Date(current.previousConversationAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`
+                        : ""}
+                      {current.previousConversationSubject
+                        ? `: "${current.previousConversationSubject}"`
+                        : ""}
+                      . Review this before sending so the email does not read like a fresh first-touch.
                     </p>
                   </div>
                 </div>
@@ -1420,7 +1462,7 @@ export default function SequenceApprovalPanel({
                 hasAiDraft ? "border-copper/40 ring-[3px] ring-copper/10" : editingId === current.enrollmentId ? "border-copper/40 ring-[3px] ring-copper/10" : "border-edge"
               }`}>
                 {/* Subject bar */}
-                <div className="flex items-center gap-3 border-b border-edge px-5 py-3">
+                <div className="flex flex-col gap-2 border-b border-edge px-4 py-3 sm:flex-row sm:items-center sm:px-5">
                   <Mail className="h-4 w-4 shrink-0 text-ink-light" />
                   {rewritingId === current.enrollmentId && !hasAiDraft ? (
                     <SkeletonLine className="h-4 w-2/5 flex-1" />
@@ -1433,12 +1475,12 @@ export default function SequenceApprovalPanel({
                       className="flex-1 bg-transparent text-[14px] font-semibold text-ink outline-none placeholder:text-ink-faint"
                     />
                   ) : (
-                    <p className="text-[14px] font-semibold text-ink flex-1 min-w-0 truncate">
+                    <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">
                       {(edits[current.enrollmentId]?.subject ?? current.subject) || "(No subject)"}
                     </p>
                   )}
                   {/* Edit / Done / Reset / AI draft buttons */}
-                  <div className="ml-auto flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 flex-wrap items-center gap-1 sm:ml-auto">
                     {hasAiDraft ? (
                       <>
                         <span className="rounded-full bg-copper-light px-2.5 py-[2px] text-[9px] font-bold uppercase text-copper flex items-center gap-1 mr-1">
@@ -1525,7 +1567,7 @@ export default function SequenceApprovalPanel({
                 </div>
 
                 {/* To field */}
-                <div className="flex items-center gap-2 border-b border-edge/60 px-5 py-2">
+                <div className="flex min-w-0 items-center gap-2 border-b border-edge/60 px-4 py-2 sm:px-5">
                   <span className="text-[11px] font-medium text-ink-light">To:</span>
                   <span className="rounded-full bg-cream px-2.5 py-[2px] text-[11px] font-medium text-ink-mid">
                     {current.email}
@@ -1533,7 +1575,7 @@ export default function SequenceApprovalPanel({
                 </div>
 
                 {/* Body */}
-                <div className="flex min-h-[340px] flex-col">
+                <div className="flex min-h-[240px] flex-col md:min-h-[340px]">
                   {rewritingId === current.enrollmentId && !hasAiDraft ? (
                     <div className="px-5 py-4">
                       <EmailSkeleton hasResearch={!!(leadResearch[current.leadId] || current.research)} />
@@ -1543,7 +1585,7 @@ export default function SequenceApprovalPanel({
                       content={draftBody}
                       onChange={setDraftBody}
                       placeholder="Write your email…"
-                      className="min-h-[340px] flex-1"
+                      className="min-h-[240px] flex-1 md:min-h-[340px]"
                     />
                   ) : emailIsEmpty ? (
                     <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
@@ -1564,15 +1606,15 @@ export default function SequenceApprovalPanel({
                       </button>
                     </div>
                   ) : edits[current.enrollmentId] ? (
-                    <div className="px-5 py-4">
+                    <div className="px-4 py-4 sm:px-5">
                       <HtmlPreview html={edits[current.enrollmentId].body} />
                     </div>
                   ) : current.isHtml ? (
-                    <div className="px-5 py-4">
+                    <div className="px-4 py-4 sm:px-5">
                       <HtmlPreview html={current.body} />
                     </div>
                   ) : (
-                    <p className="px-5 py-4 whitespace-pre-wrap text-[13px] leading-[1.7] text-ink-mid">
+                    <p className="whitespace-pre-wrap px-4 py-4 text-[13px] leading-[1.7] text-ink-mid sm:px-5">
                       {current.body || "(No body)"}
                     </p>
                   )}
@@ -1594,10 +1636,10 @@ export default function SequenceApprovalPanel({
 
         {/* ── Footer action bar ── */}
         {!allDone && current && (
-          <div className="border-t border-edge bg-surface px-5 md:px-7 py-4">
-            <div className="flex items-center justify-between">
+          <div className="border-t border-edge bg-surface px-4 py-3 md:px-7 md:py-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               {/* Navigation */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center justify-between gap-1.5 md:justify-start">
                 <button
                   onClick={goPrev}
                   disabled={index === 0}
@@ -1618,12 +1660,12 @@ export default function SequenceApprovalPanel({
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2.5">
+              <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:gap-2.5">
                 {hasAiDraft ? (
                   <>
                     <button
                       onClick={rejectAiDraft}
-                      className="cursor-pointer inline-flex items-center gap-1.5 rounded-[10px] border border-edge px-4 py-2 text-[13px] font-semibold text-ink-mid transition-all active:scale-[0.98] hover:border-rose/30 hover:bg-rose-light hover:text-rose"
+                      className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-edge px-3 py-2.5 text-[13px] font-semibold text-ink-mid transition-all hover:border-rose/30 hover:bg-rose-light hover:text-rose active:scale-[0.98] md:px-4 md:py-2"
                     >
                       <XCircle className="h-4 w-4" />
                       Reject
@@ -1631,7 +1673,7 @@ export default function SequenceApprovalPanel({
                     <button
                       onClick={handleRedoEmail}
                       disabled={rewritingId === current.enrollmentId}
-                      className="cursor-pointer inline-flex items-center gap-1.5 rounded-[10px] border border-edge px-4 py-2 text-[13px] font-semibold text-ink-mid transition-all active:scale-[0.98] hover:border-copper/30 hover:bg-copper-light hover:text-copper disabled:opacity-40"
+                      className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-edge px-3 py-2.5 text-[13px] font-semibold text-ink-mid transition-all hover:border-copper/30 hover:bg-copper-light hover:text-copper active:scale-[0.98] disabled:opacity-40 md:px-4 md:py-2"
                     >
                       {rewritingId === current.enrollmentId ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1643,7 +1685,7 @@ export default function SequenceApprovalPanel({
                     <button
                       onClick={acceptAiDraft}
                       disabled={rewritingId === current.enrollmentId}
-                      className="cursor-pointer inline-flex items-center gap-1.5 rounded-[10px] bg-copper px-5 py-2 text-[13px] font-semibold text-white shadow-xs shadow-copper transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-40"
+                      className="col-span-2 inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-copper px-5 py-2.5 text-[13px] font-semibold text-white shadow-xs shadow-copper transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-40 md:col-span-1 md:py-2"
                     >
                       <Check className="h-4 w-4" />
                       Accept
@@ -1654,7 +1696,7 @@ export default function SequenceApprovalPanel({
                     <button
                       onClick={handleAiRewrite}
                       disabled={isApproving || currentState === "approved" || currentState === "declined" || rewritingId === current.enrollmentId}
-                      className={`cursor-pointer inline-flex items-center gap-1.5 rounded-[10px] border px-4 py-2 text-[13px] font-semibold transition-all active:scale-[0.98] disabled:opacity-40 ${
+                      className={`col-span-2 inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.98] disabled:opacity-40 md:col-span-1 md:px-4 md:py-2 ${
                         rewritingId === current.enrollmentId
                           ? "border-copper/30 bg-copper-light text-copper"
                           : "border-edge text-ink-mid hover:border-copper/30 hover:bg-copper-light hover:text-copper"
@@ -1673,7 +1715,7 @@ export default function SequenceApprovalPanel({
                     <button
                       onClick={handleDecline}
                       disabled={isApproving || currentState === "declined"}
-                      className={`cursor-pointer inline-flex items-center gap-1.5 rounded-[10px] border px-4 py-2 text-[13px] font-semibold transition-all active:scale-[0.98] disabled:opacity-40 ${
+                      className={`inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2.5 text-[13px] font-semibold transition-all active:scale-[0.98] disabled:opacity-40 md:px-4 md:py-2 ${
                         currentState === "declined"
                           ? "border-rose/30 bg-rose-light text-rose"
                           : "border-edge text-ink-mid hover:border-rose/30 hover:bg-rose-light hover:text-rose"
@@ -1686,7 +1728,7 @@ export default function SequenceApprovalPanel({
                     <button
                       onClick={handleApprove}
                       disabled={isApproving || currentState === "approved" || emailIsEmpty}
-                      className={`cursor-pointer inline-flex items-center gap-1.5 rounded-[10px] px-5 py-2 text-[13px] font-semibold shadow-xs transition-all active:scale-[0.98] disabled:opacity-50 ${
+                      className={`inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-4 py-2.5 text-[13px] font-semibold shadow-xs transition-all active:scale-[0.98] disabled:opacity-50 md:px-5 md:py-2 ${
                         currentState === "approved"
                           ? "bg-sage text-white"
                           : "bg-copper text-white shadow-copper hover:bg-copper-hover"
