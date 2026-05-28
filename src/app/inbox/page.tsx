@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   Inbox,
   Loader2,
@@ -296,7 +296,9 @@ export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedThreadKey, setSelectedThreadKey] = useState<string | null>(null);
   const [contentTab, setContentTab] = useState<"email" | "research">("email");
+  const [animDir, setAnimDir] = useState<"left" | "right" | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   // Track which earlier emails are expanded in the conversation view (latest is always expanded)
   const [expandedEmailIds, setExpandedEmailIds] = useState<Set<string>>(new Set());
 
@@ -310,7 +312,8 @@ export default function InboxPage() {
   const [filterNeedsFollowUp, setFilterNeedsFollowUp] = useState(false);
   const [sortFilter, setSortFilter] = useState<SortFilter>("newest");
   const [filterModalOpen, setFilterModalOpen] = useState(false);
-  const [inboxPage, setInboxPage] = useState(1);
+  const [listPage, setListPage] = useState(1);
+  const threadListRef = useRef<HTMLDivElement>(null);
 
   // Follow-up compose state
   const [followUpOpen, setFollowUpOpen] = useState(false);
@@ -480,8 +483,26 @@ export default function InboxPage() {
     nowMs,
   ]);
 
+  const totalListPages = Math.max(1, Math.ceil(threads.length / INBOX_PAGE_SIZE));
+  const listRangeStart = threads.length === 0 ? 0 : (listPage - 1) * INBOX_PAGE_SIZE + 1;
+  const listRangeEnd = Math.min(listPage * INBOX_PAGE_SIZE, threads.length);
+  const paginatedThreads = threads.slice(
+    (listPage - 1) * INBOX_PAGE_SIZE,
+    listPage * INBOX_PAGE_SIZE,
+  );
+
+  const goToListPage = useCallback(
+    (p: number) => {
+      if (p < 1 || p > totalListPages) return;
+      setListPage(p);
+      threadListRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [totalListPages],
+  );
+
+  // Reset page whenever filters/search change
   useEffect(() => {
-    setInboxPage(1);
+    setListPage(1);
   }, [
     searchQuery,
     filterSequences,
@@ -495,19 +516,10 @@ export default function InboxPage() {
     sortFilter,
   ]);
 
-  const totalInboxPages = Math.max(1, Math.ceil(threads.length / INBOX_PAGE_SIZE));
-
+  // Keep page in range when result count shrinks
   useEffect(() => {
-    if (inboxPage > totalInboxPages) setInboxPage(totalInboxPages);
-  }, [inboxPage, totalInboxPages]);
-
-  const paginatedThreads = useMemo(() => {
-    const start = (inboxPage - 1) * INBOX_PAGE_SIZE;
-    return threads.slice(start, start + INBOX_PAGE_SIZE);
-  }, [inboxPage, threads]);
-
-  const visibleStart = threads.length === 0 ? 0 : (inboxPage - 1) * INBOX_PAGE_SIZE + 1;
-  const visibleEnd = Math.min(threads.length, inboxPage * INBOX_PAGE_SIZE);
+    setListPage((p) => Math.min(p, totalListPages));
+  }, [totalListPages]);
 
   const clearAllFilters = () => {
     setFilterSequences(new Set());
@@ -524,8 +536,13 @@ export default function InboxPage() {
   const { theme } = useTheme();
   const selectedThread = selectedThreadKey ? threads.find((t) => t.key === selectedThreadKey) ?? null : null;
   const latestEmail = selectedThread?.latest ?? null;
+  const selectedThreadIndex = useMemo(
+    () => (selectedThreadKey ? threads.findIndex((t) => t.key === selectedThreadKey) : -1),
+    [selectedThreadKey, threads],
+  );
 
-  const selectThread = (key: string) => {
+  const selectThread = useCallback((key: string) => {
+    setAnimDir(null);
     setSelectedThreadKey(key);
     setContentTab("email");
     setFollowUpOpen(false);
@@ -537,7 +554,54 @@ export default function InboxPage() {
     setFollowUpError(null);
     setExpandedEmailIds(new Set());
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }, []);
+
+  const goToNextThread = useCallback(() => {
+    if (selectedThreadIndex < 0 || selectedThreadIndex >= threads.length - 1) return;
+    setAnimDir("left");
+    const nextIndex = selectedThreadIndex + 1;
+    const nextPage = Math.floor(nextIndex / INBOX_PAGE_SIZE) + 1;
+    if (nextPage !== listPage) setListPage(nextPage);
+    selectThread(threads[nextIndex].key);
+  }, [selectedThreadIndex, threads, listPage, selectThread]);
+
+  const goToPrevThread = useCallback(() => {
+    if (selectedThreadIndex <= 0) return;
+    setAnimDir("right");
+    const prevIndex = selectedThreadIndex - 1;
+    const prevPage = Math.floor(prevIndex / INBOX_PAGE_SIZE) + 1;
+    if (prevPage !== listPage) setListPage(prevPage);
+    selectThread(threads[prevIndex].key);
+  }, [selectedThreadIndex, threads, listPage, selectThread]);
+
+  const canGoPrev = selectedThreadIndex > 0;
+  const canGoNext = selectedThreadIndex >= 0 && selectedThreadIndex < threads.length - 1;
+  const threadPosition = selectedThreadIndex >= 0 ? selectedThreadIndex + 1 : 0;
+  const progressPct = threads.length > 0 && selectedThreadIndex >= 0
+    ? Math.round((threadPosition / threads.length) * 100)
+    : 0;
+
+  const handleSwipeTouchStart = useCallback((e: React.TouchEvent) => {
+    swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, []);
+
+  const handleSwipeTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const start = swipeStartRef.current;
+      swipeStartRef.current = null;
+      if (!start || !selectedThreadKey || followUpOpen || followUpGenerating || followUpSending || deleteTarget) return;
+
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+
+      if (dx < 0) goToNextThread();
+      else goToPrevThread();
+    },
+    [selectedThreadKey, followUpOpen, followUpGenerating, followUpSending, deleteTarget, goToNextThread, goToPrevThread],
+  );
 
   const toggleEmailExpand = (id: string) => {
     setExpandedEmailIds((prev) => {
@@ -768,31 +832,44 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="flex h-screen bg-cream">
+    <>
       {filterModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-0 backdrop-blur-[2px] sm:px-4"
-          onClick={() => setFilterModalOpen(false)}
-        >
+        <>
           <div
-            className="flex h-full w-full flex-col overflow-hidden border-edge bg-surface shadow-xl animate-fade-up sm:max-h-[88vh] sm:max-w-[560px] sm:rounded-[18px] sm:border"
+            className="fixed inset-0 z-[60] bg-ink/30 backdrop-blur-[2px]"
+            onClick={() => setFilterModalOpen(false)}
+            aria-hidden
+          />
+          <div
+            className="fixed inset-x-0 bottom-16 z-[61] flex max-h-[85vh] min-h-0 flex-col overflow-hidden rounded-t-[22px] border-t border-edge bg-surface shadow-xl animate-fade-up sm:inset-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[88vh] sm:w-full sm:max-w-[560px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[18px] sm:border"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inbox-filters-title"
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-edge bg-surface px-5 py-4">
-              <div>
-                <p className="font-[family-name:var(--font-display)] text-[17px] font-bold text-ink">Inbox Filters</p>
-                <p className="mt-0.5 text-[12px] text-ink-light">Sort and narrow conversations by status, date, sequence, and more.</p>
+            <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
+              <div className="h-1 w-10 rounded-full bg-edge-strong" />
+            </div>
+            <div className="flex shrink-0 items-center justify-between border-b border-edge px-4 py-3 sm:px-5 sm:py-4">
+              <div className="min-w-0 pr-3">
+                <p id="inbox-filters-title" className="font-[family-name:var(--font-display)] text-[16px] font-bold text-ink sm:text-[17px]">
+                  Inbox Filters
+                </p>
+                <p className="mt-0.5 hidden text-[12px] text-ink-light sm:block">
+                  Sort and narrow conversations by status, date, sequence, and more.
+                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setFilterModalOpen(false)}
-                className="cursor-pointer rounded-[8px] p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink"
+                className="cursor-pointer shrink-0 rounded-full p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink"
                 aria-label="Close filters"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:space-y-5 sm:px-5 sm:py-5">
               <section>
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-light">Sequence & Company</p>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -947,14 +1024,16 @@ export default function InboxPage() {
 
             </div>
 
-            <div className="flex shrink-0 items-center justify-between border-t border-edge bg-surface px-4 py-4 sm:px-5">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-edge bg-surface px-4 py-3 sm:px-5 sm:py-4">
               <button
+                type="button"
                 onClick={clearAllFilters}
                 className="cursor-pointer text-[12px] font-semibold text-copper transition-colors hover:text-copper-hover"
               >
                 Clear all
               </button>
               <button
+                type="button"
                 onClick={() => setFilterModalOpen(false)}
                 className="cursor-pointer rounded-[10px] bg-copper px-4 py-2 text-[12px] font-semibold text-white transition-all hover:bg-copper-hover"
               >
@@ -962,9 +1041,10 @@ export default function InboxPage() {
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
+    <div className="fixed inset-x-0 top-[52px] bottom-16 z-30 flex overflow-hidden bg-cream md:static md:z-auto md:h-screen md:max-h-screen">
       <ConfirmDeleteModal
         open={!!deleteTarget}
         title="Delete conversation?"
@@ -984,7 +1064,7 @@ export default function InboxPage() {
       />
 
       {/* ── Left sidebar: thread list ── */}
-      <div className={`${selectedThreadKey ? "hidden md:flex" : "flex"} w-full shrink-0 flex-col border-r border-edge bg-surface md:w-[280px]`}>
+      <div className={`${selectedThreadKey ? "hidden md:flex" : "flex"} min-h-0 w-full shrink-0 flex-col overflow-hidden border-r border-edge bg-surface md:w-[280px]`}>
         {/* Header */}
         <div className="sticky top-0 z-20 border-b border-edge bg-surface px-4 py-4 md:static">
           <div className="flex items-center gap-2.5">
@@ -1103,7 +1183,7 @@ export default function InboxPage() {
         )}
 
         {/* Thread list */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={threadListRef} className="min-h-0 flex-1 overflow-y-auto">
           {threads.length === 0 && (
             <div className="px-4 py-10 text-center">
               <Search className="mx-auto h-5 w-5 text-ink-light" />
@@ -1182,29 +1262,54 @@ export default function InboxPage() {
         </div>
 
         {threads.length > INBOX_PAGE_SIZE && (
-          <div className="border-t border-edge bg-surface px-3 py-2.5">
-            <div className="mb-2 text-center text-[10px] font-medium text-ink-light">
-              Showing {visibleStart}-{visibleEnd} of {threads.length}
-            </div>
-            <div className="flex items-center justify-between gap-2">
+          <div className="shrink-0 border-t border-edge bg-surface px-3 py-2.5">
+            <p className="mb-2 text-center text-[10px] text-ink-mid">
+              <span className="font-semibold text-ink">{listRangeStart}–{listRangeEnd}</span> of{" "}
+              <span className="font-semibold text-ink">{threads.length}</span>
+            </p>
+            <div className="flex items-center justify-center gap-1">
               <button
-                onClick={() => setInboxPage((page) => Math.max(1, page - 1))}
-                disabled={inboxPage <= 1}
-                className="inline-flex cursor-pointer items-center gap-1 rounded-[8px] border border-edge bg-cream px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream-deep disabled:cursor-not-allowed disabled:opacity-35"
+                type="button"
+                onClick={() => goToListPage(listPage - 1)}
+                disabled={listPage <= 1}
+                className="cursor-pointer rounded-[8px] p-[6px] text-ink-mid transition-colors hover:bg-cream hover:text-ink disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Previous page"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Prev
+                <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="rounded-full bg-cream-deep px-2.5 py-1 text-[10px] font-bold text-ink-mid">
-                {inboxPage}/{totalInboxPages}
-              </span>
+              {Array.from({ length: totalListPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalListPages || Math.abs(p - listPage) <= 1)
+                .reduce<(number | "ellipsis")[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  item === "ellipsis" ? (
+                    <span key={`e${idx}`} className="px-1 text-[10px] text-ink-light">…</span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => goToListPage(item)}
+                      className={`cursor-pointer rounded-[8px] px-2 py-[4px] text-[10px] font-semibold transition-colors ${
+                        listPage === item
+                          ? "bg-copper text-white shadow-xs"
+                          : "text-ink-mid hover:bg-cream hover:text-ink"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
               <button
-                onClick={() => setInboxPage((page) => Math.min(totalInboxPages, page + 1))}
-                disabled={inboxPage >= totalInboxPages}
-                className="inline-flex cursor-pointer items-center gap-1 rounded-[8px] border border-edge bg-cream px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream-deep disabled:cursor-not-allowed disabled:opacity-35"
+                type="button"
+                onClick={() => goToListPage(listPage + 1)}
+                disabled={listPage >= totalListPages}
+                className="cursor-pointer rounded-[8px] p-[6px] text-ink-mid transition-colors hover:bg-cream hover:text-ink disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Next page"
               >
-                Next
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -1212,17 +1317,120 @@ export default function InboxPage() {
       </div>
 
       {/* ── Main content area ── */}
-      <div className={`${selectedThreadKey ? "flex" : "hidden md:flex"} flex-1 flex-col min-w-0`}>
+      <div className={`${selectedThreadKey ? "flex" : "hidden md:flex"} min-h-0 flex-1 flex-col overflow-hidden min-w-0`}>
         {selectedThread && latestEmail ? (
-          <div ref={contentRef} className="flex-1 overflow-y-auto">
-            <div className="p-4 md:p-8 animate-fade-up" key={selectedThread.key}>
-              <button
-                onClick={() => setSelectedThreadKey(null)}
-                className="mb-4 inline-flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-edge bg-surface px-3 py-2 text-[12px] font-semibold text-ink-mid md:hidden"
-              >
-                <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-                Conversations
-              </button>
+          <>
+            {/* Mobile sticky header — matches approval panel */}
+            <div className="md:hidden sticky top-0 z-30 shrink-0 border-b border-edge bg-surface/95 backdrop-blur-sm shadow-xs">
+              <div className="flex items-center gap-2.5 px-3 py-4">
+                <button
+                  onClick={() => setSelectedThreadKey(null)}
+                  className="cursor-pointer shrink-0 rounded-full p-1.5 text-ink-mid transition-colors hover:bg-cream"
+                  aria-label="Back to conversations"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[11px] font-bold text-sage">
+                  {initials(latestEmail.lead_name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-ink leading-tight">{latestEmail.lead_name}</p>
+                  <p className="truncate text-[11px] text-ink-mid leading-tight">
+                    {latestEmail.company || latestEmail.lead_email}
+                    {threads.length > 0 ? ` · ${threadPosition}/${threads.length}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  {latestEmail.lead_profile?.linkedIn && (
+                    <a
+                      href={latestEmail.lead_profile.linkedIn}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-full p-1.5 text-ink-light transition-colors hover:bg-cream hover:text-copper"
+                      aria-label="LinkedIn profile"
+                    >
+                      <Linkedin className="h-4 w-4" />
+                    </a>
+                  )}
+                  {followUpSent ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-sage-light px-2 py-1 text-[10px] font-semibold text-sage">
+                      <Check className="h-3 w-3" />
+                      Sent
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (!followUpOpen) {
+                          setFollowUpOpen(true);
+                          if (!followUpBody) handleGenerateFollowUp();
+                        } else {
+                          setFollowUpOpen(false);
+                        }
+                      }}
+                      className={`cursor-pointer rounded-full p-1.5 transition-colors ${
+                        followUpOpen ? "bg-copper-light text-copper" : "text-ink-light hover:bg-cream hover:text-copper"
+                      }`}
+                      aria-label="Follow up"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setDeleteTarget(selectedThread)}
+                    className="cursor-pointer rounded-full p-1.5 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
+                    aria-label="Delete conversation"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="h-[3px] bg-cream-deep">
+                <div
+                  className="h-full bg-copper transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <div className="flex gap-1 border-t border-edge bg-cream/60 p-[3px] mx-3 my-2 rounded-[8px]">
+                <button
+                  onClick={() => setContentTab("email")}
+                  className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] py-[6px] text-[11px] font-semibold transition-all ${
+                    contentTab === "email" ? "bg-surface text-ink shadow-xs" : "text-ink-mid hover:text-ink"
+                  }`}
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Conversation
+                </button>
+                <button
+                  onClick={() => setContentTab("research")}
+                  className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[6px] py-[6px] text-[11px] font-semibold transition-all ${
+                    contentTab === "research" ? "bg-surface text-ink shadow-xs" : "text-ink-mid hover:text-ink"
+                  }`}
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  Research
+                  {latestEmail.lead_profile?.research && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-sage" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div
+              ref={contentRef}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
+              onTouchStart={handleSwipeTouchStart}
+              onTouchEnd={handleSwipeTouchEnd}
+            >
+            <div
+              className={`p-4 md:p-8 ${
+                animDir === "left"
+                  ? "animate-slide-in-left"
+                  : animDir === "right"
+                    ? "animate-slide-in-right"
+                    : "animate-fade-up"
+              }`}
+              key={selectedThread.key}
+            >
               {needsFollowUp(selectedThread, nowMs) && (
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-[12px] border border-copper/25 bg-copper-light/40 px-4 py-3">
                   <div className="flex items-center gap-2 text-[13px] font-medium text-copper">
@@ -1241,8 +1449,8 @@ export default function InboxPage() {
                 </div>
               )}
 
-              {/* Recipient header */}
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {/* Recipient header — desktop only; mobile uses sticky chat header above */}
+              <div className="mb-5 hidden md:flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[14px] font-bold text-sage">
                     {initials(latestEmail.lead_name)}
@@ -1327,8 +1535,8 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              {/* Content tabs */}
-              <div className="mb-5 flex items-center gap-1 rounded-[10px] bg-cream-deep/60 p-1">
+              {/* Content tabs — desktop only; mobile uses sticky tabs in header */}
+              <div className="mb-5 hidden md:flex items-center gap-1 rounded-[10px] bg-cream-deep/60 p-1">
                 <button
                   onClick={() => setContentTab("email")}
                   className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] px-4 py-2 text-[12px] font-semibold transition-all sm:flex-none ${
@@ -1630,11 +1838,11 @@ export default function InboxPage() {
                     </div>
                   )}
 
-                  {/* Profile card */}
-                  <div className="mt-5 rounded-[12px] border border-edge bg-surface p-5">
+                  {/* Profile card — desktop shows full header; mobile relies on sticky header */}
+                  <div className="mt-5 rounded-[12px] border border-edge bg-surface p-4 sm:p-5">
                     <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Lead Profile</p>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-3">
+                      <div className="hidden items-center gap-3 sm:flex">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-light font-[family-name:var(--font-display)] text-[13px] font-bold text-sage">
                           {initials(latestEmail.lead_name)}
                         </div>
@@ -1643,7 +1851,7 @@ export default function InboxPage() {
                           <p className="text-[12px] text-ink-mid">{latestEmail.lead_email}</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="rounded-[8px] bg-cream px-3 py-2.5">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-light">Company</p>
                           <p className="mt-0.5 text-[13px] font-medium text-ink">{latestEmail.company || "—"}</p>
@@ -1679,6 +1887,32 @@ export default function InboxPage() {
               )}
             </div>
           </div>
+
+            {/* Mobile prev/next footer — matches approval panel */}
+            <div className="md:hidden shrink-0 border-t border-edge bg-surface px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  onClick={goToPrevThread}
+                  disabled={!canGoPrev}
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:cursor-default disabled:opacity-30"
+                  aria-label="Previous conversation"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <span className="text-center text-[11px] font-medium text-ink-light">
+                  {threadPosition}/{threads.length}
+                </span>
+                <button
+                  onClick={goToNextThread}
+                  disabled={!canGoNext}
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-edge bg-surface text-ink-mid transition-all hover:bg-cream disabled:cursor-default disabled:opacity-30"
+                  aria-label="Next conversation"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-[14px] bg-cream-deep">
@@ -1690,5 +1924,6 @@ export default function InboxPage() {
         )}
       </div>
     </div>
+    </>
   );
 }

@@ -9,6 +9,7 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Building2,
   Briefcase,
   Linkedin,
@@ -520,12 +521,99 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
   const sentimentStyle = SENTIMENT_STYLE[lead.sentiment] ?? SENTIMENT_STYLE.unknown;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+    <div className="fixed inset-x-0 top-[52px] bottom-16 z-50 flex justify-end sm:inset-0 sm:top-0 sm:bottom-0">
+      <div className="absolute inset-0 hidden bg-black/30 backdrop-blur-[2px] sm:block" onClick={onClose} />
 
-      <div className="relative z-10 flex h-full w-full max-w-[760px] flex-col bg-surface shadow-lg animate-slide-in">
-        {/* Header */}
-        <div className="border-b border-edge px-8 py-6">
+      <div className="relative z-10 flex h-full w-full flex-col bg-surface shadow-lg animate-slide-in sm:max-w-[760px]">
+        {/* Mobile header */}
+        <div className="flex shrink-0 flex-col border-b border-edge sm:hidden">
+          <div className="flex items-center gap-2.5 px-3 py-3">
+            <button
+              onClick={onClose}
+              className="cursor-pointer shrink-0 rounded-full p-1.5 text-ink-mid transition-colors hover:bg-cream hover:text-ink"
+              aria-label="Back to leads"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-copper-light font-[family-name:var(--font-display)] text-[12px] font-bold text-copper">
+              {lead.firstName[0]}{lead.lastName[0]}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-[14px] font-semibold text-ink">
+                  {lead.firstName} {lead.lastName}
+                </p>
+                <ActionBadge action={lead.actionNeeded} />
+              </div>
+              <p className="truncate text-[11px] text-ink-mid">{lead.email}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                onClick={handleAnalyze}
+                disabled={analyzing}
+                className="cursor-pointer rounded-full p-2 text-ink-light transition-colors hover:bg-cream hover:text-copper disabled:opacity-50"
+                aria-label="Analyze"
+              >
+                {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={handleGenerateEmail}
+                disabled={generating}
+                className="cursor-pointer rounded-full p-2 text-ink-light transition-colors hover:bg-cream hover:text-copper disabled:opacity-50"
+                aria-label="Draft email"
+              >
+                {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              </button>
+              <button onClick={fetchThread} className="cursor-pointer rounded-full p-2 text-ink-light transition-colors hover:bg-cream hover:text-ink-mid" aria-label="Refresh">
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          {(lead.company || lead.jobTitle || lead.linkedIn) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-edge/60 px-4 py-2">
+              {lead.company && (
+                <span className="flex max-w-full items-center gap-1 text-[11px] text-ink-mid">
+                  <Building2 className="h-3 w-3 shrink-0 text-ink-light" />
+                  <span className="truncate">{lead.company}</span>
+                </span>
+              )}
+              {lead.jobTitle && (
+                <span className="flex max-w-full items-center gap-1 text-[11px] text-ink-mid">
+                  <Briefcase className="h-3 w-3 shrink-0 text-ink-light" />
+                  <span className="truncate">{lead.jobTitle}</span>
+                </span>
+              )}
+              {lead.linkedIn && (
+                <a href={lead.linkedIn} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] text-copper hover:underline">
+                  <Linkedin className="h-3 w-3" />LinkedIn
+                </a>
+              )}
+            </div>
+          )}
+          <div className="flex gap-1 border-t border-edge bg-cream p-[3px]">
+            <button
+              onClick={() => setActiveTab("conversation")}
+              className={`cursor-pointer flex-1 rounded-[6px] py-[6px] text-[11px] font-semibold transition-all ${activeTab === "conversation" ? "bg-surface text-ink shadow-xs" : "text-ink-mid hover:text-ink"}`}
+            >
+              Chat{drafts.length > 0 && <span className="ml-1 rounded-full bg-amber-light px-1.5 text-[9px] text-amber">{drafts.length}</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("insights")}
+              className={`cursor-pointer flex-1 rounded-[6px] py-[6px] text-[11px] font-semibold transition-all ${activeTab === "insights" ? "bg-surface text-ink shadow-xs" : "text-ink-mid hover:text-ink"}`}
+            >
+              Insights
+            </button>
+            <button
+              onClick={() => setActiveTab("agent")}
+              className={`cursor-pointer flex-1 rounded-[6px] py-[6px] text-[11px] font-semibold transition-all ${activeTab === "agent" ? "bg-surface text-ink shadow-xs" : "text-ink-mid hover:text-ink"}`}
+            >
+              Agent
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop header */}
+        <div className="hidden border-b border-edge px-8 py-6 sm:block">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-copper-light font-[family-name:var(--font-display)] text-[16px] font-bold text-copper">
@@ -613,7 +701,7 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
         </div>
 
         {/* Content */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">
           {activeTab === "conversation" ? (
             <ConversationWithDrafts
               loading={loading}
@@ -651,7 +739,7 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
 
         {/* Compose */}
         {isConnected && activeTab === "conversation" && (
-          <div className="border-t border-edge bg-cream/50 px-8 py-5">
+          <div className="border-t border-edge bg-cream/50 px-4 py-4 sm:px-8 sm:py-5">
             {!composeOpen ? (
               <button
                 onClick={() => setComposeOpen(true)}
@@ -681,7 +769,7 @@ export default function LeadThreadPanel({ lead, onClose }: Props) {
         )}
 
         {!isConnected && activeTab === "conversation" && (
-          <div className="border-t border-edge px-8 py-5">
+          <div className="border-t border-edge px-4 py-4 sm:px-8 sm:py-5">
             <div className="flex items-center gap-3 rounded-[10px] bg-cream px-5 py-3.5">
               <Mail className="h-4 w-4 text-ink-light" />
               <p className="text-[13px] text-ink-mid">

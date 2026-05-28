@@ -15,11 +15,11 @@ import LeadThreadPanel from "@/components/LeadThreadPanel";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import clsx from "clsx";
 
-const tabs: { label: string; value: ActionNeeded | "all" }[] = [
-  { label: "All", value: "all" },
-  { label: "Needs Reply", value: "needs_reply" },
-  { label: "Waiting", value: "waiting_for_reply" },
-  { label: "Needs Human", value: "needs_human" },
+const tabs: { label: string; shortLabel: string; value: ActionNeeded | "all" }[] = [
+  { label: "All", shortLabel: "All", value: "all" },
+  { label: "Needs Reply", shortLabel: "Reply", value: "needs_reply" },
+  { label: "Waiting", shortLabel: "Wait", value: "waiting_for_reply" },
+  { label: "Needs Human", shortLabel: "Human", value: "needs_human" },
 ];
 
 export default function LeadsPage() {
@@ -53,6 +53,11 @@ export default function LeadsPage() {
     () => leads.filter((l) => l.actionNeeded === "needs_reply"),
     [leads]
   );
+  const draftLeadCount = useMemo(
+    () => Object.values(draftCountByLead).filter((c) => c > 0).length,
+    [draftCountByLead],
+  );
+  const needsReplyCount = filterStatus === "needs_reply" ? totalCount : needsReplyLeads.length;
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -329,24 +334,18 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1080px] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+    <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
+      {/* Header — title hidden on mobile since the top bar already shows "Leads" */}
+      <div className="mb-5 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
+        <div className="hidden sm:block">
           <h1 className="font-[family-name:var(--font-display)] text-[28px] font-extrabold tracking-[-0.03em] text-ink">
             Leads
           </h1>
           <p className="mt-2 text-[14px] text-ink-mid">
             Manage your outreach contacts.
           </p>
-          <div className="mt-4 inline-flex items-center gap-2 rounded-[12px] border border-edge bg-surface px-4 py-2 shadow-xs">
-            <Users className="h-4 w-4 text-copper" />
-            <span className="text-[13px] font-semibold text-ink">
-              {totalCount} total lead{totalCount !== 1 ? "s" : ""}
-            </span>
-          </div>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           {needsReplyLeads.length > 0 && (
             <button
               onClick={handleGenerateReplies}
@@ -363,27 +362,56 @@ export default function LeadsPage() {
             </button>
           )}
           {generateRepliesMessage && (
-            <span className="text-[13px] text-ink-mid">{generateRepliesMessage}</span>
+            <span className="text-[12px] text-ink-mid sm:text-[13px]">{generateRepliesMessage}</span>
           )}
-          <button
-            onClick={() => setImportOpen(true)}
-            className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-edge bg-surface px-4 py-[10px] text-[13px] font-semibold text-ink-mid shadow-xs transition-all hover:bg-cream hover:text-ink sm:flex-none"
-          >
-            <Upload className="h-4 w-4" strokeWidth={2.5} />
-            Import CSV
-          </button>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:flex-none"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
-            Add Lead
-          </button>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <button
+              onClick={() => setImportOpen(true)}
+              className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-edge bg-surface px-4 py-[10px] text-[13px] font-semibold text-ink-mid shadow-xs transition-all hover:bg-cream hover:text-ink sm:flex-none"
+            >
+              <Upload className="h-4 w-4" strokeWidth={2.5} />
+              Import CSV
+            </button>
+            <button
+              onClick={() => setModalOpen(true)}
+              className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-copper px-5 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98] sm:flex-none"
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
+              Add Lead
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Stats — compact on mobile */}
+      {totalCount > 0 && (
+        <div className="mb-5 grid grid-cols-3 gap-2.5 animate-fade-up sm:mb-6 sm:gap-4">
+          <div className="rounded-[12px] border border-edge bg-surface px-3 py-3 shadow-xs sm:rounded-[14px] sm:px-5 sm:py-4">
+            <div className="mb-1 flex items-center gap-1.5">
+              <Users className="h-3 w-3 text-copper sm:h-3.5 sm:w-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-ink-light sm:text-[10px]">Total</span>
+            </div>
+            <p className="text-[20px] font-bold leading-none text-ink sm:text-[24px]">{totalCount}</p>
+          </div>
+          <div className="rounded-[12px] border border-amber/20 bg-amber-light/30 px-3 py-3 shadow-xs sm:rounded-[14px] sm:px-5 sm:py-4">
+            <div className="mb-1 flex items-center gap-1.5">
+              <MessageSquare className="h-3 w-3 text-amber sm:h-3.5 sm:w-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-amber/70 sm:text-[10px]">Need Reply</span>
+            </div>
+            <p className="text-[20px] font-bold leading-none text-amber sm:text-[24px]">{needsReplyCount}</p>
+          </div>
+          <div className="rounded-[12px] border border-sage/20 bg-sage-light/40 px-3 py-3 shadow-xs sm:rounded-[14px] sm:px-5 sm:py-4">
+            <div className="mb-1 flex items-center gap-1.5">
+              <FileText className="h-3 w-3 text-sage sm:h-3.5 sm:w-3.5" />
+              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-sage/70 sm:text-[10px]">Drafts</span>
+            </div>
+            <p className="text-[20px] font-bold leading-none text-sage sm:text-[24px]">{draftLeadCount}</p>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className={clsx("mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center", selectedLeadId && "hidden md:flex")}>
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-light" />
           <input
@@ -400,19 +428,20 @@ export default function LeadsPage() {
               key={tab.value}
               onClick={() => setFilter(tab.value)}
               className={clsx(
-                "shrink-0 cursor-pointer rounded-[7px] px-3 py-[6px] text-[12px] font-semibold transition-all duration-150",
+                "shrink-0 cursor-pointer rounded-[7px] px-2.5 py-[6px] text-[11px] font-semibold transition-all duration-150 sm:px-3 sm:text-[12px]",
                 filterStatus === tab.value
                   ? "bg-copper text-white shadow-xs"
                   : "text-ink-mid hover:bg-cream hover:text-ink"
               )}
             >
-              {tab.label}
+              <span className="sm:hidden">{tab.shortLabel}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mb-5 flex gap-[4px] rounded-[12px] border border-edge bg-surface p-[5px] shadow-xs">
+      <div className={clsx("mb-5 flex gap-[4px] rounded-[12px] border border-edge bg-surface p-[5px] shadow-xs", selectedLeadId && "hidden md:flex")}>
         {([
           { value: "leads", label: "Leads", icon: Users },
           { value: "companies", label: "Companies", icon: Building2 },
@@ -436,7 +465,8 @@ export default function LeadsPage() {
         })}
       </div>
 
-      {/* Table */}
+      {/* Table / cards */}
+      <div className={clsx(selectedLeadId && "hidden md:block")}>
       {viewMode === "leads" && leads.length > 0 ? (
         <>
           <div className="space-y-3 md:hidden">
@@ -490,8 +520,8 @@ export default function LeadsPage() {
           <>
             <div className="space-y-4">
               {paginatedCompanyGroups.map((group) => (
-                <div key={group.company} className="overflow-hidden rounded-[16px] border border-edge bg-surface shadow-xs">
-                  <div className="flex items-center justify-between border-b border-edge bg-cream px-5 py-3.5">
+                <div key={group.company} className="overflow-hidden rounded-[14px] border border-edge bg-surface shadow-xs sm:rounded-[16px]">
+                  <div className="flex items-center justify-between border-b border-edge bg-cream px-4 py-3 sm:px-5 sm:py-3.5">
                     <div className="flex min-w-0 items-center gap-2">
                       <Building2 className="h-4 w-4 shrink-0 text-copper" />
                       <p className="truncate text-[14px] font-bold text-ink">{group.company}</p>
@@ -522,7 +552,7 @@ export default function LeadsPage() {
               ))}
             </div>
 
-            <div className="mt-4 flex items-center justify-between rounded-[12px] border border-edge bg-surface px-5 py-3 shadow-xs">
+            <div className="mt-4 flex flex-col gap-2 rounded-[12px] border border-edge bg-surface px-4 py-3 shadow-xs sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <p className="text-[12px] text-ink-mid">
                 Showing <span className="font-semibold text-ink">{companyRangeStart}–{companyRangeEnd}</span> of{" "}
                 <span className="font-semibold text-ink">{companyGroups.length}</span> companies
@@ -571,7 +601,7 @@ export default function LeadsPage() {
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center rounded-[20px] border border-dashed border-edge-strong bg-surface py-20">
+          <div className="flex flex-col items-center rounded-[20px] border border-dashed border-edge-strong bg-surface px-4 py-16 sm:py-20">
             <div className="rounded-[14px] bg-copper-light p-5">
               <Building2 className="h-7 w-7 text-copper" strokeWidth={1.6} />
             </div>
@@ -584,7 +614,7 @@ export default function LeadsPage() {
           </div>
         )
       ) : !loading ? (
-        <div className="flex flex-col items-center rounded-[20px] border border-dashed border-edge-strong bg-surface py-20">
+        <div className="flex flex-col items-center rounded-[20px] border border-dashed border-edge-strong bg-surface px-4 py-16 sm:py-20">
           <div className="rounded-[14px] bg-copper-light p-5">
             <Users className="h-7 w-7 text-copper" strokeWidth={1.6} />
           </div>
@@ -612,7 +642,7 @@ export default function LeadsPage() {
 
       {/* Pagination */}
       {viewMode === "leads" && totalCount > 0 && (
-        <div className="mt-4 flex items-center justify-between rounded-[12px] border border-edge bg-surface px-5 py-3 shadow-xs">
+        <div className="mt-4 flex flex-col gap-2 rounded-[12px] border border-edge bg-surface px-4 py-3 shadow-xs sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-[12px] text-ink-mid">
             Showing <span className="font-semibold text-ink">{rangeStart}–{rangeEnd}</span> of{" "}
             <span className="font-semibold text-ink">{totalCount}</span> lead{totalCount !== 1 ? "s" : ""}
@@ -660,6 +690,7 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      </div>
 
       <CreateLeadModal open={modalOpen} onClose={() => setModalOpen(false)} />
       <ImportLeadsCsvModal open={importOpen} onClose={() => setImportOpen(false)} />

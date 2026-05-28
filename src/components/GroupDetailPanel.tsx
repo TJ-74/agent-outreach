@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Plus, Trash2, Loader2, Save, Search, UserPlus, Upload, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Loader2, Save, Search, UserPlus, Upload, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useGroupStore, type Group } from "@/store/groups";
 import type { GroupMember } from "@/store/groups";
 import { useLeadStore, type Lead } from "@/store/leads";
 import ImportLeadsCsvModal from "@/components/ImportLeadsCsvModal";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import { clusterByDomain } from "@/lib/domain";
+import clsx from "clsx";
+
+const MEMBERS_PAGE_SIZE = 20;
 
 interface Props {
   group: Group | null;
@@ -40,11 +43,13 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);
   const [removingMember, setRemovingMember] = useState(false);
+  const [membersPage, setMembersPage] = useState(1);
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (group?.id) {
       fetchMembers(group.id);
+      setMembersPage(1);
     }
   }, [group?.id, fetchMembers]);
 
@@ -93,6 +98,21 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
   );
   const orgClusters = domainClusters.filter((c) => !c.isFree);
 
+  const totalMemberPages = Math.max(1, Math.ceil(members.length / MEMBERS_PAGE_SIZE));
+  const paginatedMembers = useMemo(() => {
+    const start = (membersPage - 1) * MEMBERS_PAGE_SIZE;
+    return members.slice(start, start + MEMBERS_PAGE_SIZE);
+  }, [members, membersPage]);
+  const memberRangeStart = members.length === 0 ? 0 : (membersPage - 1) * MEMBERS_PAGE_SIZE + 1;
+  const memberRangeEnd = Math.min(membersPage * MEMBERS_PAGE_SIZE, members.length);
+
+  useEffect(() => {
+    if (membersPage > totalMemberPages) setMembersPage(totalMemberPages);
+  }, [membersPage, totalMemberPages]);
+
+  const goToMembersPage = (p: number) =>
+    setMembersPage(Math.max(1, Math.min(totalMemberPages, p)));
+
   const filteredLeads = searchResults.filter((lead) => !memberLeadIds.has(lead.id));
 
   const toggleLeadSelection = (leadId: string) => {
@@ -124,14 +144,77 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
     setMemberToRemove(null);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+  const renderMemberCard = (member: GroupMember) => {
+    const domain = member.leadEmail?.split("@")[1]?.toLowerCase();
+    const cluster = domain ? orgClusters.find((c) => c.domain === domain) : undefined;
+    return (
+      <div
+        key={member.id}
+        className={clsx(
+          "rounded-[12px] border border-edge bg-surface p-3.5 shadow-xs",
+          cluster && "border-amber/20 bg-amber-light/10",
+        )}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-semibold text-ink">{member.leadName || "—"}</p>
+            <p className="mt-0.5 truncate text-[12px] text-ink-mid">{member.leadEmail || "—"}</p>
+            {member.leadCompany && (
+              <p className="mt-1 truncate text-[11px] text-ink-light">{member.leadCompany}</p>
+            )}
+            {cluster && (
+              <span className="mt-2 inline-flex items-center rounded-full bg-amber-light px-2 py-[2px] text-[10px] font-bold text-amber">
+                {cluster.count} in org
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setMemberToRemove(member)}
+            className="cursor-pointer shrink-0 rounded-[8px] p-2 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
+            aria-label="Remove member"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
-      <div className="relative z-10 flex h-full w-full max-w-[640px] flex-col bg-surface shadow-lg animate-slide-in">
-        {/* Header */}
-        <div className="border-b border-edge px-4 py-5 sm:px-8 sm:py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  return (
+    <div className="fixed inset-x-0 top-[52px] bottom-16 z-50 flex justify-end sm:inset-0 sm:top-0 sm:bottom-0">
+      <div className="absolute inset-0 hidden bg-black/30 backdrop-blur-[2px] sm:block" onClick={onClose} />
+
+      <div className="relative z-10 flex h-full w-full flex-col bg-surface shadow-lg animate-slide-in sm:max-w-[640px]">
+        {/* Mobile header */}
+        <div className="flex shrink-0 items-center gap-3 border-b border-edge px-4 py-3 sm:hidden">
+          <button
+            onClick={onClose}
+            className="cursor-pointer rounded-full p-1.5 text-ink-mid transition-colors hover:bg-cream hover:text-ink"
+            aria-label="Back"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-[family-name:var(--font-display)] text-[15px] font-bold text-ink">
+              {isNew ? "New Group" : name || "Edit Group"}
+            </p>
+            {groupId && (
+              <p className="text-[11px] text-ink-mid">{members.length} member{members.length !== 1 ? "s" : ""}</p>
+            )}
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-copper px-3 py-[7px] text-[12px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Save
+          </button>
+        </div>
+
+        {/* Desktop header */}
+        <div className="hidden border-b border-edge px-8 py-6 sm:block">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <input
                 type="text"
@@ -148,7 +231,7 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                 className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
               />
             </div>
-            <div className="flex items-center gap-2 shrink-0 sm:ml-4">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 onClick={onClose}
                 className="cursor-pointer rounded-[8px] border border-edge px-3.5 py-[7px] text-[12px] font-semibold text-ink-mid transition-all hover:bg-cream hover:text-ink"
@@ -165,6 +248,24 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Mobile name/description fields */}
+        <div className="border-b border-edge px-4 py-4 sm:hidden">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Group name..."
+            className="w-full bg-transparent font-[family-name:var(--font-display)] text-[18px] font-bold tracking-[-0.02em] text-ink placeholder:text-ink-light outline-none"
+          />
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add a description..."
+            className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
+          />
         </div>
 
         {/* Content */}
@@ -338,49 +439,106 @@ export default function GroupDetailPanel({ group, isNew, onClose }: Props) {
                     <p className="text-[13px] text-ink-mid">No members yet. Search and add leads above.</p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-[12px] border border-edge">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-edge bg-cream">
-                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Name</th>
-                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Email</th>
-                          <th className="hidden px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light sm:table-cell">Company</th>
-                          <th className="w-10 px-4 py-2.5"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-edge">
-                        {members.map((member) => {
-                          const domain = member.leadEmail?.split("@")[1]?.toLowerCase();
-                          const cluster = domain ? orgClusters.find((c) => c.domain === domain) : undefined;
-                          return (
-                            <tr key={member.id} className={`transition-colors hover:bg-cream/60 ${cluster ? "bg-amber-light/10" : ""}`}>
-                              <td className="px-4 py-2.5 text-[12px] font-semibold text-ink">
-                                {member.leadName || "—"}
-                              </td>
-                              <td className="px-4 py-2.5 text-[12px] text-ink-mid">
-                                <span>{member.leadEmail || "—"}</span>
-                                {cluster && (
-                                  <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-light px-1.5 py-[1px] text-[9px] font-bold text-amber">
-                                    {cluster.count} in org
-                                  </span>
-                                )}
-                              </td>
-                              <td className="hidden px-4 py-2.5 text-[12px] text-ink-mid sm:table-cell">
-                                {member.leadCompany || "—"}
-                              </td>
-                              <td className="px-4 py-2.5 text-right">
-                                <button
-                                  onClick={() => setMemberToRemove(member)}
-                                  className="cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <>
+                    <div className="space-y-2.5 sm:hidden">
+                      {paginatedMembers.map(renderMemberCard)}
+                    </div>
+                    <div className="hidden overflow-hidden rounded-[12px] border border-edge sm:block">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-edge bg-cream">
+                            <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Name</th>
+                            <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">Email</th>
+                            <th className="hidden px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light sm:table-cell">Company</th>
+                            <th className="w-10 px-4 py-2.5"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-edge">
+                          {paginatedMembers.map((member) => {
+                            const domain = member.leadEmail?.split("@")[1]?.toLowerCase();
+                            const cluster = domain ? orgClusters.find((c) => c.domain === domain) : undefined;
+                            return (
+                              <tr key={member.id} className={`transition-colors hover:bg-cream/60 ${cluster ? "bg-amber-light/10" : ""}`}>
+                                <td className="px-4 py-2.5 text-[12px] font-semibold text-ink">
+                                  {member.leadName || "—"}
+                                </td>
+                                <td className="px-4 py-2.5 text-[12px] text-ink-mid">
+                                  <span>{member.leadEmail || "—"}</span>
+                                  {cluster && (
+                                    <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-light px-1.5 py-[1px] text-[9px] font-bold text-amber">
+                                      {cluster.count} in org
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="hidden px-4 py-2.5 text-[12px] text-ink-mid sm:table-cell">
+                                  {member.leadCompany || "—"}
+                                </td>
+                                <td className="px-4 py-2.5 text-right">
+                                  <button
+                                    onClick={() => setMemberToRemove(member)}
+                                    className="cursor-pointer rounded-[6px] p-1 text-ink-light transition-colors hover:bg-rose-light hover:text-rose"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                {members.length > MEMBERS_PAGE_SIZE && (
+                  <div className="mt-3 flex flex-col gap-2 rounded-[10px] border border-edge bg-cream/40 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-[11px] text-ink-mid">
+                      Showing <span className="font-semibold text-ink">{memberRangeStart}–{memberRangeEnd}</span> of{" "}
+                      <span className="font-semibold text-ink">{members.length}</span>
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => goToMembersPage(membersPage - 1)}
+                        disabled={membersPage <= 1}
+                        className="cursor-pointer rounded-[8px] p-[6px] text-ink-mid transition-colors hover:bg-surface hover:text-ink disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      {Array.from({ length: totalMemberPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === totalMemberPages || Math.abs(p - membersPage) <= 1)
+                        .reduce<(number | "ellipsis")[]>((acc, p, idx, arr) => {
+                          if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((item, idx) =>
+                          item === "ellipsis" ? (
+                            <span key={`e${idx}`} className="px-1 text-[11px] text-ink-light">…</span>
+                          ) : (
+                            <button
+                              key={item}
+                              onClick={() => goToMembersPage(item)}
+                              className={clsx(
+                                "cursor-pointer rounded-[8px] px-2 py-[4px] text-[11px] font-semibold transition-colors",
+                                membersPage === item
+                                  ? "bg-copper text-white shadow-xs"
+                                  : "text-ink-mid hover:bg-surface hover:text-ink",
+                              )}
+                            >
+                              {item}
+                            </button>
+                          ),
+                        )}
+                      <button
+                        onClick={() => goToMembersPage(membersPage + 1)}
+                        disabled={membersPage >= totalMemberPages}
+                        className="cursor-pointer rounded-[8px] p-[6px] text-ink-mid transition-colors hover:bg-surface hover:text-ink disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+                        aria-label="Next page"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

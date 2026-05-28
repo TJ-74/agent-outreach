@@ -9,6 +9,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
   Loader2,
   Clock,
   Mail,
@@ -338,13 +339,115 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+    <div className="fixed inset-x-0 top-[52px] bottom-16 z-50 flex justify-end sm:inset-0 sm:top-0 sm:bottom-0">
+      <div className="absolute inset-0 hidden bg-black/30 backdrop-blur-[2px] sm:block" onClick={onClose} />
 
       <div className="relative z-10 flex h-full w-full flex-col bg-surface shadow-lg animate-slide-in sm:max-w-[92vw] lg:w-[75vw] lg:min-w-[540px]">
-        {/* Header */}
-        <div className="border-b border-edge px-4 py-5 sm:px-8 sm:py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        {/* Mobile header */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-edge px-4 py-3 sm:hidden">
+          <button
+            onClick={onClose}
+            className="cursor-pointer rounded-full p-1.5 text-ink-mid transition-colors hover:bg-cream hover:text-ink"
+            aria-label="Back"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-[family-name:var(--font-display)] text-[15px] font-bold text-ink">
+              {isNew ? "New Sequence" : name || "Edit Sequence"}
+            </p>
+            {seqId && (
+              <p className="text-[11px] text-ink-mid">
+                {steps.length} step{steps.length !== 1 ? "s" : ""} · {enrollments.length} enrolled
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {seqId && status !== "completed" && (
+              <button
+                onClick={handlePlayPause}
+                disabled={executing || !seqId}
+                title={status === "active" ? "Pause sequence" : "Activate & send"}
+                className={`cursor-pointer inline-flex items-center gap-1 rounded-[8px] px-2.5 py-[6px] text-[11px] font-semibold shadow-xs transition-all active:scale-[0.98] disabled:opacity-50 ${
+                  status === "active"
+                    ? "bg-amber text-white hover:bg-amber/90"
+                    : "bg-sage text-white hover:bg-sage/90"
+                }`}
+              >
+                {executing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : status === "active" ? (
+                  <Pause className="h-3.5 w-3.5" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+            <button
+              onClick={handleSaveSequence}
+              disabled={saving || !name.trim()}
+              className="cursor-pointer inline-flex items-center gap-1 rounded-[8px] bg-copper px-2.5 py-[6px] text-[11px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover active:scale-[0.98] disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile name/description */}
+        <div className="border-b border-edge px-4 py-4 sm:hidden">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Sequence name..."
+            className="w-full bg-transparent font-[family-name:var(--font-display)] text-[18px] font-bold tracking-[-0.02em] text-ink placeholder:text-ink-light outline-none"
+          />
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add a description..."
+            className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
+          />
+          {seqId && (
+            <div className="mt-4 flex gap-1 rounded-[10px] border border-edge bg-cream p-[3px]">
+              <button
+                onClick={() => setMainTab("audience")}
+                className={`cursor-pointer flex flex-1 items-center justify-center gap-1 rounded-[8px] py-[7px] text-[11px] font-semibold transition-all ${
+                  mainTab === "audience"
+                    ? "bg-surface text-copper shadow-xs"
+                    : "text-ink-mid hover:text-ink"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Audience
+              </button>
+              <button
+                onClick={() => setMainTab("steps")}
+                className={`cursor-pointer flex flex-1 items-center justify-center gap-1 rounded-[8px] py-[7px] text-[11px] font-semibold transition-all ${
+                  mainTab === "steps"
+                    ? "bg-surface text-copper shadow-xs"
+                    : "text-ink-mid hover:text-ink"
+                }`}
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Steps
+                {steps.length > 0 && (
+                  <span className={`rounded-full px-1.5 py-[1px] text-[9px] font-bold ${
+                    mainTab === "steps" ? "bg-copper-light text-copper" : "bg-cream-deep text-ink-light"
+                  }`}>
+                    {steps.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop header */}
+        <div className="hidden border-b border-edge px-8 py-6 sm:block">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <input
                 type="text"
@@ -361,7 +464,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                 className="mt-1.5 w-full bg-transparent text-[13px] text-ink-mid placeholder:text-ink-light outline-none"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:ml-4 sm:justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {seqId && status !== "completed" && (
                 <button
                   onClick={handlePlayPause}
@@ -442,12 +545,12 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
         {seqId && mainTab === "audience" && (
           <div className="flex-1 overflow-y-auto">
             {/* Group Selector */}
-            <div className="border-b border-edge px-8 py-5">
+            <div className="border-b border-edge px-4 py-5 sm:px-8">
               <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
                 Assign Group
               </p>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <CustomSelect
                   value={selectedGroupId ?? ""}
                   onChange={(val) => setSelectedGroupId(val || null)}
@@ -465,7 +568,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
                 <button
                   onClick={handleAssignGroup}
                   disabled={!selectedGroupId || assigning}
-                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-[8px] bg-sage px-3.5 py-[8px] text-[12px] font-semibold text-white transition-all hover:bg-sage/90 disabled:opacity-40"
+                  className="cursor-pointer inline-flex w-full items-center justify-center gap-1.5 rounded-[8px] bg-sage px-3.5 py-[8px] text-[12px] font-semibold text-white transition-all hover:bg-sage/90 disabled:opacity-40 sm:w-auto"
                 >
                   {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
                   Assign
@@ -628,12 +731,12 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
             </div>
 
             {/* AI Training Config Selector */}
-            <div className="border-b border-edge px-8 py-5">
+            <div className="border-b border-edge px-4 py-5 sm:px-8">
               <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-light">
                 AI Training Profile
               </p>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <CustomSelect
                   value={selectedTrainingId ?? ""}
                   onChange={(val) => {
@@ -692,7 +795,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
 
         {/* ══ Email Steps tab ══ */}
         {seqId && mainTab === "steps" && (
-        <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">
           {steps.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="rounded-[14px] bg-cream-deep p-5">
@@ -1015,7 +1118,7 @@ export default function SequenceBuilder({ sequence, isNew, onClose }: Props) {
 
         {/* Pre-save empty state (no tabs yet) */}
         {!seqId && (
-          <div className="flex-1 overflow-y-auto px-8 py-6">
+          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">
             <div className="flex flex-col items-center justify-center py-20">
               <div className="rounded-[14px] bg-cream-deep p-5">
                 <Mail className="h-7 w-7 text-ink-light" />
