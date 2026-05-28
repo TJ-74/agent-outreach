@@ -97,11 +97,17 @@ export async function researchLead(
   const personQueries: string[] = [];
   if (company) {
     personQueries.push(`${name} ${company}`);
+    personQueries.push(`"${name}" "${company}" LinkedIn`);
   }
   if (domain && !isFree) {
     personQueries.push(`${name} ${domain}`);
+    personQueries.push(`"${name}" site:linkedin.com "${domain}"`);
   }
-  personQueries.push(`"${name}" LinkedIn`);
+  // Only fall back to bare-name LinkedIn if we have no other anchor — common
+  // names will match unrelated people, so we treat this as a last resort.
+  if (!company && isFree) {
+    personQueries.push(`"${name}" LinkedIn`);
+  }
   personQueries.push(email);
 
   const personResults = await searchWithRetries(personQueries, 3);

@@ -20,6 +20,7 @@ import {
   X,
   GitBranch,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Sparkles,
   RotateCcw,
@@ -83,6 +84,7 @@ interface Thread {
 }
 
 const FOLLOW_UP_THRESHOLD_MS = 2 * 24 * 60 * 60 * 1000;
+const INBOX_PAGE_SIZE = 25;
 
 type SortFilter = "newest" | "oldest" | "lead" | "company" | "needsFollowUp";
 type DateFilter = "all" | "today" | "week" | "month" | "custom";
@@ -308,6 +310,7 @@ export default function InboxPage() {
   const [filterNeedsFollowUp, setFilterNeedsFollowUp] = useState(false);
   const [sortFilter, setSortFilter] = useState<SortFilter>("newest");
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [inboxPage, setInboxPage] = useState(1);
 
   // Follow-up compose state
   const [followUpOpen, setFollowUpOpen] = useState(false);
@@ -476,6 +479,35 @@ export default function InboxPage() {
     sortFilter,
     nowMs,
   ]);
+
+  useEffect(() => {
+    setInboxPage(1);
+  }, [
+    searchQuery,
+    filterSequences,
+    filterCompanies,
+    filterDate,
+    filterDateFrom,
+    filterDateTo,
+    filterDirection,
+    filterResearch,
+    filterNeedsFollowUp,
+    sortFilter,
+  ]);
+
+  const totalInboxPages = Math.max(1, Math.ceil(threads.length / INBOX_PAGE_SIZE));
+
+  useEffect(() => {
+    if (inboxPage > totalInboxPages) setInboxPage(totalInboxPages);
+  }, [inboxPage, totalInboxPages]);
+
+  const paginatedThreads = useMemo(() => {
+    const start = (inboxPage - 1) * INBOX_PAGE_SIZE;
+    return threads.slice(start, start + INBOX_PAGE_SIZE);
+  }, [inboxPage, threads]);
+
+  const visibleStart = threads.length === 0 ? 0 : (inboxPage - 1) * INBOX_PAGE_SIZE + 1;
+  const visibleEnd = Math.min(threads.length, inboxPage * INBOX_PAGE_SIZE);
 
   const clearAllFilters = () => {
     setFilterSequences(new Set());
@@ -1078,7 +1110,7 @@ export default function InboxPage() {
               <p className="mt-2 text-[12px] text-ink-mid">No matches</p>
             </div>
           )}
-          {threads.map((thread) => {
+          {paginatedThreads.map((thread) => {
             const active = thread.key === selectedThreadKey;
             const emailCount = thread.emails.length;
             const followUpDue = needsFollowUp(thread, nowMs);
@@ -1148,6 +1180,35 @@ export default function InboxPage() {
             );
           })}
         </div>
+
+        {threads.length > INBOX_PAGE_SIZE && (
+          <div className="border-t border-edge bg-surface px-3 py-2.5">
+            <div className="mb-2 text-center text-[10px] font-medium text-ink-light">
+              Showing {visibleStart}-{visibleEnd} of {threads.length}
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={() => setInboxPage((page) => Math.max(1, page - 1))}
+                disabled={inboxPage <= 1}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-[8px] border border-edge bg-cream px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream-deep disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Prev
+              </button>
+              <span className="rounded-full bg-cream-deep px-2.5 py-1 text-[10px] font-bold text-ink-mid">
+                {inboxPage}/{totalInboxPages}
+              </span>
+              <button
+                onClick={() => setInboxPage((page) => Math.min(totalInboxPages, page + 1))}
+                disabled={inboxPage >= totalInboxPages}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-[8px] border border-edge bg-cream px-2.5 py-1.5 text-[11px] font-semibold text-ink-mid transition-colors hover:bg-cream-deep disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Main content area ── */}

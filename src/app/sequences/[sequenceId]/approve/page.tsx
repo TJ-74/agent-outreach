@@ -7,6 +7,8 @@ import Link from "next/link";
 import SequenceApprovalPanel from "@/components/SequenceApprovalPanel";
 import type { LeadPreview } from "@/app/api/sequences/preview-step/route";
 
+const APPROVAL_PAGE_SIZE = 25;
+
 export default function SequenceApprovePage() {
   const params = useParams();
   const router = useRouter();
@@ -14,7 +16,10 @@ export default function SequenceApprovePage() {
 
   const [sequenceName, setSequenceName] = useState<string | null>(null);
   const [previews, setPreviews] = useState<LeadPreview[] | null>(null);
+  const [approvalPage, setApprovalPage] = useState(1);
+  const [totalPreviews, setTotalPreviews] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingPage, setLoadingPage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,23 +46,6 @@ export default function SequenceApprovePage() {
 
         const seq = await seqRes.json();
         setSequenceName(seq.name ?? "Sequence");
-
-        const previewRes = await fetch("/api/sequences/preview-step", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sequenceId }),
-        });
-
-        if (cancelled) return;
-        const data = await previewRes.json();
-
-        if (!previewRes.ok) {
-          setError(data.error ?? "Failed to load previews");
-          setLoading(false);
-          return;
-        }
-
-        setPreviews(data.previews ?? []);
       } catch {
         if (!cancelled) setError("Failed to load");
       } finally {
@@ -69,6 +57,58 @@ export default function SequenceApprovePage() {
       cancelled = true;
     };
   }, [sequenceId]);
+
+  useEffect(() => {
+    if (!sequenceId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      setLoadingPage(true);
+      setError(null);
+      try {
+
+        const previewRes = await fetch("/api/sequences/preview-step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sequenceId,
+            page: approvalPage,
+            pageSize: APPROVAL_PAGE_SIZE,
+          }),
+        });
+
+        if (cancelled) return;
+        const data = await previewRes.json();
+
+        if (!previewRes.ok) {
+          setError(data.error ?? "Failed to load previews");
+          setLoading(false);
+          return;
+        }
+
+        const nextPreviews = data.previews ?? [];
+        const total = data.pagination?.total ?? nextPreviews.length;
+        const maxPage = Math.max(1, Math.ceil(total / APPROVAL_PAGE_SIZE));
+
+        if (approvalPage > maxPage) {
+          setApprovalPage(maxPage);
+          return;
+        }
+
+        setTotalPreviews(total);
+        setPreviews(nextPreviews);
+      } catch {
+        if (!cancelled) setError("Failed to load");
+      } finally {
+        if (!cancelled) setLoadingPage(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sequenceId, approvalPage]);
 
   if (!sequenceId) {
     return (
@@ -85,7 +125,7 @@ export default function SequenceApprovePage() {
     );
   }
 
-  if (loading) {
+  if (loading || (loadingPage && previews === null)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
         <Loader2 className="h-10 w-10 animate-spin text-copper" />
@@ -109,7 +149,7 @@ export default function SequenceApprovePage() {
     );
   }
 
-  if (!previews || previews.length === 0) {
+  if (!previews || (previews.length === 0 && totalPreviews === 0)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cream-deep">
@@ -137,6 +177,11 @@ export default function SequenceApprovePage() {
       sequenceId={sequenceId}
       sequenceName={sequenceName ?? "Sequence"}
       previews={previews}
+      totalPreviews={totalPreviews}
+      page={approvalPage}
+      pageSize={APPROVAL_PAGE_SIZE}
+      loadingPage={loadingPage}
+      onPageChange={setApprovalPage}
       onClose={() => router.push("/sequences")}
       onSequenceCompleted={() => router.push("/sequences")}
       standalone
