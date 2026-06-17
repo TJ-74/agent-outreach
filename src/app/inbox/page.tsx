@@ -626,6 +626,7 @@ export default function InboxPage() {
           leadName: latestEmail.lead_name,
           leadEmail: latestEmail.lead_email,
           company: latestEmail.company,
+          notes: latestEmail.lead_profile?.notes || null,
           originalSubject: latestEmail.subject,
           originalBody: latestEmail.body,
           research: latestEmail.lead_profile?.research || null,
