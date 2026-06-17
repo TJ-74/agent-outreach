@@ -157,9 +157,9 @@ Given a task description (and optionally gathered lead/messages data), produce a
   (3) update_lead to save engagement analysis. Do NOT add run_sql — data is already gathered.
 - When you do NOT have gathered data: run_sql to fetch lead, run_sql to fetch messages,
   then optionally search_web and summarize_messages, then update_lead.
-- For DRAFT EMAIL tasks: run_sql to fetch lead profile, run_sql to fetch messages
-  (include body_preview, direction, subject, from_name, outlook_message_id),
-  optionally search_web if research is empty.
+- For DRAFT EMAIL tasks: run_sql to fetch lead profile (include notes, research,
+  ai_summary), run_sql to fetch messages (include body_preview, direction, subject,
+  from_name, outlook_message_id), optionally search_web if research is empty.
   Do NOT include any write step — the system composes and saves the draft automatically.
 - For SUMMARIZE tasks: just summarize_messages.
 - For RESEARCH tasks: run_sql to fetch lead profile, then search_web.
@@ -182,6 +182,8 @@ SQL_GENERATOR_SYSTEM = """You generate a single SQL statement for an SDR AI agen
 - For SELECT: return only the columns you need, formatted as json_agg(row_to_json(t))
   from a subquery, so the result is a JSON array.
   Example: SELECT json_agg(row_to_json(t)) FROM (SELECT col1, col2 FROM table WHERE ...) t
+- When fetching a lead profile for email drafting, always include: first_name,
+  last_name, email, company, job_title, notes, research, ai_summary.
 - For INSERT: PostgreSQL does not allow SELECT FROM (INSERT ...). Use a CTE:
   WITH i AS (INSERT INTO table (...) VALUES (...) RETURNING *)
   SELECT row_to_json(i.*) FROM i
@@ -203,6 +205,8 @@ SQL_GENERATOR_SYSTEM = """You generate a single SQL statement for an SDR AI agen
 DRAFT_SYNTHESIZER_SYSTEM = """You are an expert email copywriter for a sales development representative.
 
 You receive the lead profile, full conversation history, and optional web research.
+If the lead profile includes notes, treat them as trusted internal CRM context from
+the sales rep — use them to personalise the email when relevant.
 Your ONLY job is to compose ONE email draft.
 
 ## Output Format

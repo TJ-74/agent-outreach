@@ -76,7 +76,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Azure OpenAI not configured" }, { status: 503 });
   }
 
-  const { sequenceId, leadName, leadEmail, company, originalSubject, originalBody, research, model } = await req.json();
+  const { sequenceId, leadName, leadEmail, company, notes, originalSubject, originalBody, research, model } =
+    await req.json();
 
   if (!leadEmail || !originalSubject) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -108,10 +109,15 @@ export async function POST(req: NextRequest) {
 
   const systemPrompt = buildFollowUpSystemPrompt(training, research || null);
 
+  const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
+
   const userMessage = [
     `Lead: ${leadName ?? "Unknown"}`,
     `Email: ${leadEmail}`,
     company ? `Company: ${company}` : null,
+    trimmedNotes
+      ? `Internal notes (from CRM — use to personalise when relevant): ${trimmedNotes}`
+      : null,
     "",
     "Original email that received no reply:",
     `Subject: ${originalSubject}`,

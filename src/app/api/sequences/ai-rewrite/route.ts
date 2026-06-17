@@ -150,16 +150,21 @@ export async function POST(req: NextRequest) {
     .single();
 
   let researchSummary: string | null = null;
+  let leadNotes: string | null = null;
 
-  if (skipResearch && leadId) {
-    // Reuse existing research from the DB — skip Brave Search entirely
+  if (leadId) {
     const { data: lead } = await supabase
       .from("leads")
-      .select("research")
+      .select("research, notes")
       .eq("id", leadId)
       .single();
-    researchSummary = lead?.research || null;
-  } else {
+    leadNotes = lead?.notes?.trim() || null;
+    if (skipResearch) {
+      researchSummary = lead?.research || null;
+    }
+  }
+
+  if (!skipResearch) {
     // Run Brave Search + AI summary
     const rawResearch = await researchLead(leadName ?? "Unknown", email, company || undefined);
     const hasResearch = rawResearch.combined !== "No research found.";
@@ -212,6 +217,9 @@ export async function POST(req: NextRequest) {
     `Lead: ${leadName ?? "Unknown"}`,
     `Email: ${email}`,
     company ? `Company: ${company}` : null,
+    leadNotes
+      ? `Internal notes (from CRM — use to personalise when relevant): ${leadNotes}`
+      : null,
   ];
 
   if (hasExisting) {
