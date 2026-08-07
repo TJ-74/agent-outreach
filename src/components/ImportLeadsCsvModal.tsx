@@ -151,7 +151,12 @@ export default function ImportLeadsCsvModal({
   const [parsing, setParsing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [importResult, setImportResult] = useState<{ inserted: number; duplicates: number } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    inserted: number;
+    duplicates: number;
+    linked: number;
+    forGroup: boolean;
+  } | null>(null);
 
   const fieldOrder: LeadField[] = [
     "email",
@@ -274,21 +279,51 @@ export default function ImportLeadsCsvModal({
     setBusy(true);
     setError("");
     setImportResult(null);
+    const forGroup = !!onImportedLeadIds;
     try {
       const res = await addLeadsBulk(parsedLeads.valid);
+
+      let linked = 0;
       if (onImportedLeadIds && res.leadIds.length > 0) {
         await onImportedLeadIds(res.leadIds);
+        linked = res.leadIds.length;
       }
+
+      // Group import: existing leads are attached (not treated as failure).
+      if (forGroup && linked > 0) {
+        if (res.inserted === linked && res.duplicates === 0) {
+          close();
+          return;
+        }
+        setImportResult({
+          inserted: res.inserted,
+          duplicates: res.duplicates,
+          linked,
+          forGroup: true,
+        });
+        return;
+      }
+
       if (res.inserted > 0) {
         if (res.duplicates > 0) {
-          setImportResult({ inserted: res.inserted, duplicates: res.duplicates });
+          setImportResult({
+            inserted: res.inserted,
+            duplicates: res.duplicates,
+            linked: 0,
+            forGroup: false,
+          });
         } else {
           close();
         }
         return;
       }
+
       if (res.duplicates > 0) {
-        setError(`All ${res.duplicates} lead${res.duplicates !== 1 ? "s" : ""} already exist. No new leads were imported.`);
+        setError(
+          forGroup
+            ? `Found ${res.duplicates} existing lead${res.duplicates !== 1 ? "s" : ""}, but none could be added to the group.`
+            : `All ${res.duplicates} lead${res.duplicates !== 1 ? "s" : ""} already exist. No new leads were imported.`,
+        );
       } else {
         setError("No leads were imported. Please check your CSV and try again.");
       }
@@ -309,7 +344,9 @@ export default function ImportLeadsCsvModal({
               {title}
             </h2>
             <p className="mt-1 text-[13px] text-ink-mid">
-              Upload, map columns, and bulk import valid rows.
+              {onImportedLeadIds
+                ? "Upload a CSV — new leads are created, existing ones are linked to this group."
+                : "Upload, map columns, and bulk import valid rows."}
             </p>
           </div>
           <button
@@ -373,8 +410,30 @@ export default function ImportLeadsCsvModal({
 
         {importResult && (
           <div className="mt-4 rounded-[10px] border border-sage/30 bg-sage-light/40 px-4 py-3 text-[12px] text-ink-mid">
-            <span className="font-semibold text-sage">{importResult.inserted} lead{importResult.inserted !== 1 ? "s" : ""} imported.</span>
-            {" "}{importResult.duplicates} duplicate{importResult.duplicates !== 1 ? "s" : ""} skipped (already exist).
+            {importResult.forGroup ? (
+              <>
+                <span className="font-semibold text-sage">
+                  {importResult.linked} lead{importResult.linked !== 1 ? "s" : ""} added to the group.
+                </span>
+                {importResult.inserted > 0 && (
+                  <> ({importResult.inserted} newly created)</>
+                )}
+                {importResult.duplicates > 0 && (
+                  <>
+                    {" "}
+                    {importResult.duplicates} already existed — linked without creating duplicates.
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-sage">
+                  {importResult.inserted} lead{importResult.inserted !== 1 ? "s" : ""} imported.
+                </span>
+                {" "}
+                {importResult.duplicates} duplicate{importResult.duplicates !== 1 ? "s" : ""} skipped (already exist).
+              </>
+            )}
             <button onClick={close} className="ml-3 cursor-pointer font-semibold text-copper hover:underline">Done</button>
           </div>
         )}
