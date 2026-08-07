@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Search, Plus, Trash2, ExternalLink, Users, Mail, Pencil, MessageSquare, FileText, Upload, Loader2, ChevronLeft, ChevronRight, Building2 } from "lucide-react";
-import { useLeadStore, type Lead, type ActionNeeded } from "@/store/leads";
+import { useLeadStore, type Lead, type ActionNeeded, type LeadStatus } from "@/store/leads";
 import { useOutlookStore } from "@/store/outlook";
 import { useGoogleStore } from "@/store/google";
 import { useDraftStore } from "@/store/drafts";
@@ -13,6 +13,7 @@ import EditLeadModal from "@/components/EditLeadModal";
 import SendEmailModal from "@/components/SendEmailModal";
 import LeadThreadPanel from "@/components/LeadThreadPanel";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import CustomSelect from "@/components/CustomSelect";
 import clsx from "clsx";
 
 const tabs: { label: string; shortLabel: string; value: ActionNeeded | "all" }[] = [
@@ -22,10 +23,22 @@ const tabs: { label: string; shortLabel: string; value: ActionNeeded | "all" }[]
   { label: "Needs Human", shortLabel: "Human", value: "needs_human" },
 ];
 
+const LEAD_STATUS_OPTIONS: { value: LeadStatus | "all"; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "new", label: "New" },
+  { value: "contacted", label: "Contacted" },
+  { value: "replied", label: "Replied" },
+  { value: "engaged", label: "Engaged" },
+  { value: "qualified", label: "Qualified" },
+  { value: "won", label: "Won" },
+  { value: "lost", label: "Lost" },
+  { value: "nurture", label: "Nurture" },
+];
+
 export default function LeadsPage() {
   const {
-    leads, loading, searchQuery, filterStatus, page, pageSize, totalCount,
-    setSearch, setFilter, setPage, deleteLead, fetchLeads, fetchAllMatchingLeads,
+    leads, loading, searchQuery, filterStatus, filterLeadStatus, page, pageSize, totalCount,
+    setSearch, setFilter, setLeadStatusFilter, setPage, deleteLead, fetchLeads, fetchAllMatchingLeads,
   } = useLeadStore();
   const { checkConnection: checkOutlookConnection } = useOutlookStore();
   const { checkConnection: checkGoogleConnection } = useGoogleStore();
@@ -119,7 +132,7 @@ export default function LeadsPage() {
   useEffect(() => {
     if (initialMount.current) return;
     fetchLeads();
-  }, [page, filterStatus]);
+  }, [page, filterStatus, filterLeadStatus]);
 
   useEffect(() => {
     if (viewMode !== "companies") return;
@@ -136,7 +149,7 @@ export default function LeadsPage() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, searchQuery, filterStatus, fetchAllMatchingLeads]);
+  }, [viewMode, searchQuery, filterStatus, filterLeadStatus, fetchAllMatchingLeads]);
 
   useEffect(() => {
     if (companyPage > companyTotalPages) setCompanyPage(companyTotalPages);
@@ -422,6 +435,13 @@ export default function LeadsPage() {
             className="w-full rounded-[10px] border border-edge bg-surface py-[10px] pl-10 pr-4 text-[13px] text-ink placeholder:text-ink-light shadow-xs outline-none transition-all hover:border-edge-strong focus:border-copper focus:ring-[3px] focus:ring-copper-light"
           />
         </div>
+        <CustomSelect
+          value={filterLeadStatus}
+          onChange={(v) => setLeadStatusFilter(v as LeadStatus | "all")}
+          options={LEAD_STATUS_OPTIONS}
+          placeholder="Status"
+          className="w-full sm:w-[160px]"
+        />
         <div className="flex w-full overflow-x-auto rounded-[10px] border border-edge bg-surface p-[4px] shadow-xs sm:w-auto">
           {tabs.map((tab) => (
             <button
@@ -619,16 +639,16 @@ export default function LeadsPage() {
             <Users className="h-7 w-7 text-copper" strokeWidth={1.6} />
           </div>
           <h3 className="mt-5 font-[family-name:var(--font-display)] text-[17px] font-bold text-ink">
-            {searchQuery || filterStatus !== "all"
+            {searchQuery || filterStatus !== "all" || filterLeadStatus !== "all"
               ? "No matches"
               : "No leads yet"}
           </h3>
           <p className="mt-1.5 max-w-[280px] text-center text-[13px] text-ink-mid">
-            {searchQuery || filterStatus !== "all"
+            {searchQuery || filterStatus !== "all" || filterLeadStatus !== "all"
               ? "Try adjusting your search or filters."
               : "Add your first contact to get started."}
           </p>
-          {!searchQuery && filterStatus === "all" && (
+          {!searchQuery && filterStatus === "all" && filterLeadStatus === "all" && (
             <button
               onClick={() => setModalOpen(true)}
               className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-[10px] bg-copper px-6 py-[10px] text-[13px] font-semibold text-white shadow-xs transition-all hover:bg-copper-hover hover:shadow-copper active:scale-[0.98]"

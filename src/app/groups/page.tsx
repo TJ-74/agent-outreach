@@ -1,22 +1,21 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, FolderOpen, Trash2, Pencil, Users, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useGroupStore, type Group } from "@/store/groups";
-import GroupDetailPanel from "@/components/GroupDetailPanel";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import clsx from "clsx";
 
 const GROUPS_PAGE_SIZE = 12;
 
 export default function GroupsPage() {
+  const router = useRouter();
   const { groups, loading, fetchGroups, deleteGroup } = useGroupStore();
   const [page, setPage] = useState(1);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
-  const [isNew, setIsNew] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGroups();
@@ -37,30 +36,19 @@ export default function GroupsPage() {
 
   const goToPage = (p: number) => setPage(Math.max(1, Math.min(totalPages, p)));
 
-  const openNew = () => {
-    setEditingGroup(null);
-    setIsNew(true);
-    setPanelOpen(true);
-  };
-
-  const openEdit = (group: Group) => {
-    setEditingGroup(group);
-    setIsNew(false);
-    setPanelOpen(true);
-  };
-
-  const handleClose = () => {
-    setPanelOpen(false);
-    setEditingGroup(null);
-    setIsNew(false);
-    fetchGroups();
-  };
+  const openNew = () => router.push("/groups/new");
+  const openEdit = (group: Group) => router.push(`/groups/${group.id}`);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    await deleteGroup(deleteTarget.id);
+    setActionError(null);
+    const ok = await deleteGroup(deleteTarget.id);
     setDeleting(false);
+    if (!ok) {
+      setActionError(`Could not delete “${deleteTarget.name}”. Try again.`);
+      return;
+    }
     setDeleteTarget(null);
   };
 
@@ -124,7 +112,6 @@ export default function GroupsPage() {
 
   return (
     <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
-      {/* Header — title hidden on mobile since the top bar already shows "Groups" */}
       <div className="mb-5 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div className="hidden sm:block">
           <h1 className="font-[family-name:var(--font-display)] text-[28px] font-extrabold tracking-[-0.03em] text-ink">
@@ -143,7 +130,18 @@ export default function GroupsPage() {
         </button>
       </div>
 
-      {/* Stats — compact on mobile */}
+      {actionError && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-[10px] border border-rose/30 bg-rose-light/40 px-3.5 py-2.5">
+          <p className="text-[12px] text-ink-mid">{actionError}</p>
+          <button
+            onClick={() => setActionError(null)}
+            className="cursor-pointer text-[11px] font-semibold text-ink-light hover:text-ink"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {groups.length > 0 && (
         <div className="mb-5 grid grid-cols-2 gap-2.5 animate-fade-up sm:mb-6 sm:gap-4">
           <div className="rounded-[12px] border border-edge bg-surface px-3 py-3 shadow-xs sm:rounded-[14px] sm:px-5 sm:py-4">
@@ -163,7 +161,6 @@ export default function GroupsPage() {
         </div>
       )}
 
-      {/* List / grid */}
       {groups.length > 0 ? (
         <>
           <div className="space-y-3 md:hidden">
@@ -175,7 +172,6 @@ export default function GroupsPage() {
         </>
       ) : null}
 
-      {/* Pagination */}
       {groups.length > 0 && (
         <div className="mt-4 flex flex-col gap-2 rounded-[12px] border border-edge bg-surface px-4 py-3 shadow-xs sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-[12px] text-ink-mid">
@@ -247,14 +243,6 @@ export default function GroupsPage() {
         </div>
       ) : null}
 
-      {/* Detail panel */}
-      {panelOpen && (
-        <GroupDetailPanel
-          group={editingGroup}
-          isNew={isNew}
-          onClose={handleClose}
-        />
-      )}
       <ConfirmDeleteModal
         open={!!deleteTarget}
         title="Delete group?"

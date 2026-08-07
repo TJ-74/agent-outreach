@@ -121,19 +121,20 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-async function fetchExistingEmails(uid: string, emails: string[]): Promise<Set<string>> {
+/** Returns map of normalized email → lead id for rows that already exist. */
+async function fetchExistingEmailIds(uid: string, emails: string[]): Promise<Map<string, string>> {
   const normalized = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
-  const existing = new Set<string>();
+  const existing = new Map<string, string>();
 
   for (const chunk of chunkArray(normalized, SUPABASE_IN_FILTER_CHUNK_SIZE)) {
     const { data } = await supabase
       .from("leads")
-      .select("email")
+      .select("id, email")
       .eq("user_id", uid)
       .or(chunk.map((email) => `email.ilike.${email}`).join(","));
 
     for (const row of data ?? []) {
-      existing.add(normalizeEmail(row.email));
+      existing.set(normalizeEmail(row.email), row.id as string);
     }
   }
 
@@ -143,7 +144,10 @@ async function fetchExistingEmails(uid: string, emails: string[]): Promise<Set<s
 interface LeadState {
   leads: Lead[];
   searchQuery: string;
+  /** Action-needed tabs filter (needs_reply, waiting_for_reply, …). */
   filterStatus: ActionNeeded | "all";
+  /** Pipeline status filter (new, contacted, replied, …). */
+  filterLeadStatus: LeadStatus | "all";
   loading: boolean;
   page: number;
   pageSize: number;
@@ -151,12 +155,20 @@ interface LeadState {
   fetchLeads: () => Promise<void>;
   fetchAllMatchingLeads: () => Promise<Lead[]>;
   searchAllLeads: (query: string) => Promise<Lead[]>;
+  getLeadById: (id: string) => Promise<Lead | null>;
   addLead: (lead: LeadInput) => Promise<{ success: boolean; duplicate?: boolean }>;
-  addLeadsBulk: (leads: LeadInput[]) => Promise<{ inserted: number; skipped: number; duplicates: number; leadIds: string[] }>;
+  addLeadsBulk: (leads: LeadInput[]) => Promise<{
+    inserted: number;
+    skipped: number;
+    duplicates: number;
+    /** New + existing lead ids (existing are included so callers can still attach them to a group). */
+    leadIds: string[];
+  }>;
   updateLead: (id: string, updates: Partial<Lead>) => Promise<{ success: boolean; duplicate?: boolean }>;
   deleteLead: (id: string) => Promise<void>;
   setSearch: (query: string) => void;
   setFilter: (status: ActionNeeded | "all") => void;
+  setLeadStatusFilter: (status: LeadStatus | "all") => void;
   setPage: (page: number) => void;
 }
 
@@ -164,6 +176,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
   leads: [],
   searchQuery: "",
   filterStatus: "all",
+  filterLeadStatus: "all",
   loading: false,
   page: 1,
   pageSize: 25,
@@ -176,7 +189,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
       return;
     }
 
-    const { page, pageSize, searchQuery, filterStatus } = get();
+    const { page, pageSize, searchQuery, filterStatus, filterLeadStatus } = get();
     set({ loading: true });
 
     let query = supabase
@@ -186,6 +199,10 @@ export const useLeadStore = create<LeadState>((set, get) => ({
 
     if (filterStatus !== "all") {
       query = query.eq("action_needed", filterStatus);
+    }
+
+    if (filterLeadStatus !== "all") {
+      query = query.eq("status", filterLeadStatus);
     }
 
     if (searchQuery.trim()) {
@@ -212,7 +229,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     const uid = getUserId();
     if (!uid) return [];
 
-    const { searchQuery, filterStatus } = get();
+    const { searchQuery, filterStatus, filterLeadStatus } = get();
     const rows: DbRow[] = [];
 
     for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
@@ -224,6 +241,10 @@ export const useLeadStore = create<LeadState>((set, get) => ({
 
       if (filterStatus !== "all") {
         query = query.eq("action_needed", filterStatus);
+      }
+
+      if (filterLeadStatus !== "all") {
+        query = query.eq("status", filterLeadStatus);
       }
 
       if (searchQuery.trim()) {
@@ -269,13 +290,31 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     return (data as DbRow[]).map(rowToLead);
   },
 
+  getLeadById: async (id) => {
+    const cached = get().leads.find((l) => l.id === id);
+    if (cached) return cached;
+
+    const uid = getUserId();
+    if (!uid) return null;
+
+    const { data, error } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return rowToLead(data as DbRow);
+  },
+
   addLead: async (lead) => {
     const uid = getUserId();
     if (!uid) return { success: false };
     const email = normalizeEmail(lead.email);
     if (!email) return { success: false };
 
-    const existingEmails = await fetchExistingEmails(uid, [email]);
+    const existingEmails = await fetchExistingEmailIds(uid, [email]);
     if (existingEmails.has(email)) {
       return { success: false, duplicate: true };
     }
@@ -325,13 +364,18 @@ export const useLeadStore = create<LeadState>((set, get) => ({
       uniqueLeads.push({ ...lead, email });
     }
 
-    const existingEmails = await fetchExistingEmails(uid, uniqueLeads.map((lead) => lead.email));
+    const existingByEmail = await fetchExistingEmailIds(
+      uid,
+      uniqueLeads.map((lead) => lead.email),
+    );
+    const existingIds = [...new Set(existingByEmail.values())];
 
-    const newLeads = uniqueLeads.filter((l) => !existingEmails.has(normalizeEmail(l.email)));
+    const newLeads = uniqueLeads.filter((l) => !existingByEmail.has(normalizeEmail(l.email)));
     const duplicates = inputDuplicates + (uniqueLeads.length - newLeads.length);
 
     if (newLeads.length === 0) {
-      return { inserted: 0, skipped: 0, duplicates, leadIds: [] };
+      // No inserts needed — still return existing ids so group import can attach them.
+      return { inserted: 0, skipped: 0, duplicates, leadIds: existingIds };
     }
 
     const rows = newLeads.map((lead) => ({
@@ -353,7 +397,8 @@ export const useLeadStore = create<LeadState>((set, get) => ({
       .select();
 
     if (error || !data) {
-      return { inserted: 0, skipped: newLeads.length, duplicates, leadIds: [] };
+      // Insert failed, but existing matches can still be used by the caller.
+      return { inserted: 0, skipped: newLeads.length, duplicates, leadIds: existingIds };
     }
 
     const insertedRows = (data as DbRow[]).map(rowToLead);
@@ -366,7 +411,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
       inserted: insertedRows.length,
       skipped: Math.max(0, newLeads.length - insertedRows.length),
       duplicates,
-      leadIds: insertedRows.map((row) => row.id),
+      leadIds: [...existingIds, ...insertedRows.map((row) => row.id)],
     };
   },
 
@@ -440,5 +485,6 @@ export const useLeadStore = create<LeadState>((set, get) => ({
 
   setSearch: (query) => set({ searchQuery: query, page: 1 }),
   setFilter: (status) => set({ filterStatus: status, page: 1 }),
+  setLeadStatusFilter: (status) => set({ filterLeadStatus: status, page: 1 }),
   setPage: (page) => set({ page }),
 }));

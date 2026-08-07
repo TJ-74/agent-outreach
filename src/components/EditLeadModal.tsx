@@ -7,9 +7,11 @@ import { useLeadStore, type Lead } from "@/store/leads";
 interface Props {
   lead: Lead | null;
   onClose: () => void;
+  /** Called after a successful save with the submitted fields. */
+  onSaved?: (lead: Lead) => void;
 }
 
-export default function EditLeadModal({ lead, onClose }: Props) {
+export default function EditLeadModal({ lead, onClose, onSaved }: Props) {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -73,6 +75,7 @@ export default function EditLeadModal({ lead, onClose }: Props) {
       setErrors({ email: "Could not update lead" });
       return;
     }
+    onSaved?.({ ...lead, ...form });
     onClose();
   };
 
